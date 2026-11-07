@@ -1,0 +1,79 @@
+# Madness: handoff notes for Claude
+
+This file is read automatically by any Claude session opened in this folder. Keep it current:
+update **Status** and **Next steps** whenever something changes.
+
+## What this is
+A self-hosted AI SaaS that the owner (Parzival) is building:
+- A ChatGPT-style website and an OpenAI-compatible API (`/v1`).
+- The model is **gpt-oss-20b** (llama.cpp, MXFP4) on an **RTX 5060 Ti 16 GB** in a GPU box at home.
+- The owner is a beginner. Explain in plain words, ask before choices that matter, and do the work for them.
+
+## Where everything lives
+| What | Where |
+|---|---|
+| Code | https://github.com/Parzival-Samanyolu/madness (public, branch `main`). Local copy: this folder |
+| Live site | https://madness.193-122-49-121.sslip.io (admin page `/admin`, API `/v1`, docs `/docs`) |
+| VPS | `ssh oracle-amd1` (Ubuntu 22.04, 1 GB RAM + 5 GB swap, passwordless sudo). Install dir `/opt/madness`, secrets in `/opt/madness/.env` (root only) |
+| Admin login | `muradhumbatov@hotmail.com`. The password is `ADMIN_PASSWORD` in `/opt/madness/.env` on the VPS. Never write it into the repo |
+| GPU box | Fedora **KDE** desktop at home. **No SSH access**: the owner types commands at its keyboard (Konsole) |
+| Links | Apple Note "Madness AI – links" on the owner's Mac (syncs to their phone) |
+
+## Architecture (as deployed)
+```
+Internet -> host Caddy on amd1 (/etc/caddy/sites/madness.caddy, HTTPS)
+         -> web container (Caddy, 127.0.0.1:18090: static site, proxies /api,/v1)
+         -> api container (FastAPI, 127.0.0.1:18000) -> postgres 127.0.0.1:55432, redis 127.0.0.1:56379
+         -> LLM at 127.0.0.1:18080 = SSH reverse tunnel from the GPU box (user madness-tunnel, port 22)
+GPU box: llama.cpp server-cuda on 127.0.0.1:8080; madness-tunnel.service runs ssh -R 18080:127.0.0.1:8080
+```
+- Oracle Cloud only allows ports 22, 80 and 443 in. That is why the design uses an SSH tunnel and not WireGuard.
+- Pairing goes over HTTPS through Caddy (`/_pair/*` -> 127.0.0.1:51821), run by `scripts/pair_server.py`.
+- DB schema changes **must** come with an Alembic migration:
+  - `cd api && .venv/bin/alembic revision --autogenerate -m "..."`
+  - `tests/test_migrations.py` fails if you forget.
+- Plans and limits live in `api/app/config.py` (`PLANS`). The free plan has 32k context and 200k tokens/day. Pro has 120k context and is assigned manually on the admin page (Stripe is a stub).
+- Website chats get context compression at 80% of the plan's context (`api/app/compress.py`).
+
+## Status (2026-11-07)
+- [x] Code complete. 19 API tests pass, and the website was checked in a headless browser.
+- [x] VPS installed on oracle-amd1 and verified live (HTTPS, login, API returns 503 "model offline" as expected).
+- [ ] **GPU box: not set up yet.** The owner will install Fedora KDE by following `docs/SETUP-FEDORA.md`.
+- [ ] Pairing: a 24-hour pairing window is open on amd1. The command is in the Apple Note.
+  - Show it again: `ssh oracle-amd1 sudo madness pair-command`.
+  - Open a new window: `ssh oracle-amd1 sudo madness pair 24`. Then update the Apple Note with the new command.
+- [ ] After the GPU box connects:
+  - Run `ssh oracle-amd1 madness status` (expect "connected").
+  - Run `ssh oracle-amd1 madness bench` and report tok/s.
+  - Raise or lower `LLM_PARALLEL` with the owner. Only the owner can change it, at the GPU box: `sudo madness set LLM_PARALLEL N`.
+- [ ] Open brainstorm: "what to build next". The first question was asked and not answered yet. Ideas raised so far:
+  - A change-password page (doesn't exist yet).
+  - Stripe billing.
+
+## Next steps when the owner comes back
+1. Ask whether the GPU box finished, then check with `ssh oracle-amd1 madness status`.
+2. If it's not connected, the owner can run `journalctl -u madness-tunnel -n 30` and `sudo madness install-log` on the GPU box and read you the output.
+3. Once it's online, test a real chat on the live site and run `madness bench`.
+
+## Rules (the owner asked for these)
+- **Keep the Mac clean.** Install nothing globally: no brew, no Docker, no `npm -g`, no pip `--user`.
+  - Use `scripts/dev.sh`. It keeps the venv, `node_modules` and caches inside the project.
+  - Run `scripts/mac-clean.sh` when you're done.
+- **On oracle-amd1, don't touch anything else:**
+  - `xb-telemetry` (live at the bare `193-122-49-121.sslip.io`, returns 404 at `/`, which is normal).
+  - The owner's cron publishers.
+  - `/opt/llm-gateway`: an old project, **stopped**. Its backup cron was renamed to `/etc/cron.d/llm-gateway-backup.disabled`. The owner chose to keep its files.
+- Before changing Caddy, run `caddy validate`. Only edit `/etc/caddy/sites/madness.caddy`.
+- Ask before deleting anything or before outward-facing actions (pushing to new places, posting).
+- Commit as the GitHub no-reply email that is already set in this repo's local git config. Pushing with the private hotmail address is blocked by GitHub.
+- Put links for the owner into the Apple Note "Madness AI – links", using `osascript`.
+
+## Handy commands
+```bash
+ssh oracle-amd1 madness status            # health of everything
+ssh oracle-amd1 sudo madness update       # deploy latest main (git pull + rebuild)
+ssh oracle-amd1 sudo madness pair 24      # 24h pairing window for the GPU box
+ssh oracle-amd1 sudo madness pair-command # show pending pairing command
+ssh oracle-amd1 madness logs api          # live API logs
+./scripts/dev.sh                          # local dev with mock model (http://localhost:5173)
+```
