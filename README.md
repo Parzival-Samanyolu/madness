@@ -6,7 +6,7 @@ Your own AI service: a ChatGPT-style website plus an OpenAI-compatible API, runn
  Internet ──HTTPS──► VPS (website, API, accounts, database)
                        ▲  private SSH tunnel on port 22 (the GPU box dials out, so no router changes)
                        │
-                     GPU box at home (Fedora + RTX 5060 Ti): runs the model
+                     GPU box at home (Fedora KDE + RTX 5060 Ti): runs the model
 ```
 
 **What users get:** sign-up and login, streaming chat with code highlighting and a visible "thinking" section, saved conversations, automatic context compression at 80%, API keys, and a usage dashboard.
@@ -34,7 +34,7 @@ Only ports **22, 80 and 443** are needed, which most VPSes (including Oracle Clo
 
 ### Part B: the GPU box (at its keyboard)
 
-Follow **[docs/SETUP-FEDORA.md](docs/SETUP-FEDORA.md)**. It starts from a blank disk: USB stick, BIOS, Fedora install, then the pairing command.
+Follow **[docs/SETUP-FEDORA.md](docs/SETUP-FEDORA.md)**. It starts from a blank disk: USB stick, BIOS, Fedora KDE install, then the pairing command.
 
 ### Later: your own domain
 

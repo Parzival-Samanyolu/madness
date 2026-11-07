@@ -261,8 +261,11 @@ EOF
 gpu_system_setup() {
   step "System settings for an always-on server"
   hostnamectl set-hostname madness-gpu
-  systemctl mask -q sleep.target suspend.target hibernate.target hybrid-sleep.target
-  ok "Sleep disabled, hostname set"
+  systemctl mask -q sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+  ok "Sleep disabled (the AI stays online), hostname set"
+  if systemctl is-enabled -q sddm 2>/dev/null || systemctl is-enabled -q gdm 2>/dev/null; then
+    ok "Desktop detected: the model will share the GPU with it (memory is adjusted automatically)"
+  fi
   if ! systemctl is-enabled -q dnf-automatic.timer 2>/dev/null && ! systemctl is-enabled -q dnf5-automatic.timer 2>/dev/null; then
     dnf -y -q install dnf-automatic || dnf -y -q install dnf5-plugin-automatic || true
     mkdir -p /etc/dnf
@@ -388,7 +391,7 @@ gpu_start_model() {
 
 install_gpu() {
   load_os
-  [[ $OS_ID == fedora ]] || die "The GPU box must run Fedora (found: $PRETTY_NAME)."
+  [[ $OS_ID == fedora ]] || die "The GPU box must run Fedora (any edition, e.g. KDE or Server; found: $PRETTY_NAME)."
   step "Preparing the GPU box ($PRETTY_NAME)"
   dnf -y -q install git openssh-clients python3 pciutils mokutil
   ok "Base packages installed"

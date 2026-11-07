@@ -1,4 +1,4 @@
-# Setting up the GPU box from a blank disk
+# Setting up the GPU box (Fedora KDE) from a blank disk
 
 A checklist you can print. It takes about an hour, most of which is waiting.
 You need: the GPU box (RTX 5060 Ti), a USB stick of 8 GB or more, a wired network cable (recommended), and your Mac.
@@ -9,11 +9,13 @@ You need: the GPU box (RTX 5060 Ti), a USB stick of 8 GB or more, a wired networ
 
 ## 1. Make the install USB (on your Mac)
 
-1. Go to **https://fedoraproject.org/server/download** and download the **Fedora Server, x86_64, DVD ISO**.
+1. Go to **https://fedoraproject.org/kde/download** and download **Fedora KDE Plasma Desktop, x86_64** (the "Live ISO").
 2. Download **Fedora Media Writer** (https://fedoraproject.org/workstation/download, scroll to "Fedora Media Writer" for macOS), or use **balenaEtcher**.
 3. Plug in the USB stick, choose **"Select .iso file"**, pick the ISO, then click **Write**. This wipes the stick.
 
-> Why **Server** and not Workstation: it has no desktop, never goes to sleep, and leaves all 16 GB of video memory for the AI.
+> **Monitor tip:** if your CPU has built-in graphics, plug the monitor into the **motherboard's** HDMI/DisplayPort, not the graphics card.
+> Then the desktop doesn't use any of the 5060 Ti's 16 GB, and the AI gets all of it. If your CPU has no graphics, that's fine:
+> the installer adjusts the AI's memory automatically.
 
 ## 2. BIOS / UEFI settings (on the GPU box)
 
@@ -23,37 +25,38 @@ Turn the box on and press the BIOS key right away (usually **Del** or **F2**). T
 |---|---|---|
 | Boot mode | **UEFI** (CSM / Legacy **off**) | Modern boot |
 | **Secure Boot** | **Disabled** | The NVIDIA driver loads without extra key steps (see the end of this guide if you want to keep it on) |
-| Restore on AC power loss | **Power On** | The server comes back by itself after a power cut |
+| Restore on AC power loss | **Power On** | The PC comes back by itself after a power cut |
 | XMP / EXPO (memory profile) | Enabled (optional) | Faster RAM |
-| Primary display / Initial display output | **PEG / PCIe** if you have no monitor on the motherboard ports | |
+| Integrated graphics (iGPU) | **Enabled** if your monitor is on the motherboard port | Keeps the 5060 Ti free for the AI |
 
 Save and exit (usually F10). Then boot from the USB stick. The boot menu key is usually **F8, F11 or F12**.
 
-## 3. Install Fedora (the "Anaconda" installer)
+## 3. Install Fedora KDE
 
-1. Pick **Install Fedora**, then your language.
-2. **Installation Destination**: select the disk and keep **Automatic**. If the disk had something on it, choose **"Reclaim space" → "Delete all"**.
-3. **Network & Host Name**: make sure your network shows *Connected*.
-   - Wi-Fi only? It can be set up after installing with `sudo nmtui`.
-4. **User Creation**: create your user, and **tick "Make this user administrator"**. Pick a strong password and write it down.
-5. **Root account**: leave it **disabled**.
-6. Click **Begin Installation**. When it finishes, remove the USB stick and **Reboot**.
+1. The USB starts a live KDE desktop. Double-click **"Install to Hard Drive"**.
+2. Pick your language and keyboard.
+3. **Installation Destination**: select the disk and keep **Automatic**. If the disk had something on it, choose **"Reclaim space" → "Delete all"**.
+4. **Network**: wired is best. For Wi-Fi, use the network icon in the bottom-right corner of the live desktop.
+5. **User**: create your user and **tick "Make this user administrator"**. Write the password down.
+6. Click **Begin Installation**. When it finishes, shut down, remove the USB stick, and turn the PC on.
 
 ## 4. First login and updates
 
-At the black login screen, type your user name and password, then:
+Log in to KDE, open **Konsole** (the menu → System → Konsole), and run:
 
 ```bash
 sudo dnf -y upgrade --refresh
 sudo reboot
 ```
 
-## 5. (Wi-Fi only) connect to Wi-Fi
+Wi-Fi: connect with the network icon in the taskbar. Tick "connect automatically" and **"all users may connect"**,
+so it reconnects after a reboot even before you log in.
 
-```bash
-sudo nmtui
-```
-Choose **Activate a connection**, pick your network, and enter its password.
+## 5. Make the PC come back by itself after a reboot (recommended)
+
+So the AI starts even if nobody logs in: open **System Settings → Colors & Themes → Login Screen (SDDM)
+→ Behavior**, then turn on **"Automatically log in"** with your user. This is optional; the AI itself runs
+without anyone logged in, but auto-login keeps the desktop ready.
 
 ## 6. Run the pairing command from your VPS
 
@@ -63,14 +66,15 @@ On the VPS, `sudo madness pair` shows a line like:
 curl -fsSL https://madness.193-122-49-121.sslip.io/_pair/abcd2345 | sudo bash
 ```
 
-Type that **exact line** on the GPU box and press Enter. It will:
+Type that **exact line** in Konsole on the GPU box and press Enter. It will:
 
 1. Connect the box privately to your VPS with an SSH tunnel. You don't need to change anything on your home router.
-2. Ask whether you want **Cockpit**, a web dashboard for this box that you can open from your Mac on the home Wi-Fi. Your choice.
-3. Install the NVIDIA driver, then ask to **reboot**. Say yes.
-4. **After the reboot it continues by itself.** You don't need to log in. It installs Docker and downloads the AI model (about 12 GB), then starts it.
+2. Turn off sleep and suspend, so the AI stays online. KDE's "Sleep" button stops working on this PC; shutting down and restarting still work.
+3. Ask whether you want **Cockpit**, a web dashboard for this box that you can open from your Mac on the home Wi-Fi. Your choice.
+4. Install the NVIDIA driver, then ask to **reboot**. Say yes.
+5. **After the reboot it continues by itself.** It installs Docker and downloads the AI model (about 12 GB), then starts it.
 
-To watch progress after the reboot, log in and run:
+To watch progress after the reboot, log in, open Konsole and run:
 ```bash
 sudo madness install-log
 ```
@@ -82,6 +86,7 @@ sudo madness install-log
 madness status
 ```
 You want to see the GPU name, about 14-15 GB of video memory in use, and `{"status":"ok"}` under **Model**.
+If the desktop runs on the 5060 Ti, a little of that memory is the desktop's; that's normal.
 Then open your website from your phone and say hi.
 
 To see how many people the GPU can serve at once:
@@ -91,7 +96,7 @@ madness bench
 
 ---
 
-## Everyday commands (at the GPU box keyboard)
+## Everyday commands (in Konsole on the GPU box)
 
 | What | Command |
 |---|---|
