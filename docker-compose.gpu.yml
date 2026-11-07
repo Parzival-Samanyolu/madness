@@ -1,0 +1,40 @@
+# Runs on the GPU box (RTX 5060 Ti): only the model server. It listens on 127.0.0.1 and is
+# reachable by the VPS only through the SSH reverse tunnel (madness-tunnel.service).
+name: madness-gpu
+services:
+  llm:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    restart: unless-stopped
+    network_mode: host          # binds to 127.0.0.1 only (see --host)
+    environment:
+      LLAMA_CACHE: /models
+      LLAMA_API_KEY: ${LLM_API_KEY}
+    volumes: ["./models:/models:Z"]
+    deploy:
+      resources:
+        reservations:
+          devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
+    command:
+      - -hf
+      - ${LLM_MODEL:-ggml-org/gpt-oss-20b-GGUF}
+      - --host
+      - 127.0.0.1
+      - --port
+      - "8080"
+      - --n-gpu-layers
+      - all
+      - --flash-attn
+      - "on"
+      - --ctx-size
+      - ${LLM_CTX:-131072}      # one shared pool for all chats (gpt-oss max is 131072)
+      - --parallel
+      - ${LLM_PARALLEL:-8}      # chats generating at the same time
+      - --kv-unified
+      - --cache-type-k
+      - q8_0
+      - --cache-type-v
+      - q8_0
+      - --jinja
+      - --reasoning-format
+      - deepseek
+      - --no-webui

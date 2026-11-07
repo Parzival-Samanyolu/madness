@@ -1,0 +1,21 @@
+# secrets
+.env
+*.env.local
+
+# local dev / build junk (removed by scripts/mac-clean.sh)
+.cache/
+api/.venv/
+.venv/
+web/node_modules/
+web/dist/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.DS_Store
+
+# server data
+data/
+models/
+backups/
+deploy/site.caddy

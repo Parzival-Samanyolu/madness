@@ -1,0 +1,64 @@
+# Runs on the VPS. Everything listens on 127.0.0.1 only; HTTPS is done by Caddy on the host
+# (deploy/site.caddy, installed by install.sh) or by the "edge" container below.
+name: madness
+services:
+  web:                      # static website + routes /api and /v1 to the api (127.0.0.1:18090)
+    build: { context: ., dockerfile: web/Dockerfile }
+    restart: unless-stopped
+    network_mode: host
+    mem_limit: 64m
+
+  api:                      # FastAPI on 127.0.0.1:18000
+    build: ./api
+    restart: unless-stopped
+    network_mode: host      # reaches the GPU tunnel on 127.0.0.1:18080
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://madness:${POSTGRES_PASSWORD}@127.0.0.1:55432/madness
+      REDIS_URL: redis://127.0.0.1:56379/0
+      LLM_URL: http://127.0.0.1:18080
+      COOKIE_SECURE: "true"
+    command: ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "18000",
+              "--proxy-headers", "--forwarded-allow-ips", "127.0.0.1"]
+    mem_limit: 256m
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports: ["127.0.0.1:55432:5432"]
+    environment:
+      POSTGRES_USER: madness
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: madness
+    command: ["postgres", "-c", "shared_buffers=32MB", "-c", "max_connections=40", "-c", "work_mem=2MB"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    mem_limit: 192m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U madness"]
+      interval: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports: ["127.0.0.1:56379:6379"]
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "32mb"]
+    mem_limit: 48m
+
+  edge:                     # only used when the VPS has no Caddy of its own (COMPOSE_PROFILES=edge)
+    profiles: [edge]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./deploy/site.caddy:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

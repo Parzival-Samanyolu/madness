@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Madness control command. Run `madness help`.
+set -euo pipefail
+DIR=/opt/madness
+[[ -f $DIR/.env ]] || { echo "Madness is not installed here ($DIR/.env missing)."; exit 1; }
+env_get() { grep -E "^$1=" "$DIR/.env" | tail -1 | cut -d= -f2- | sed 's/\$\$/$/g' || true; }
+ROLE=$(env_get ROLE)
+compose() { (cd "$DIR" && docker compose -f "docker-compose.$ROLE.yml" "$@"); }
+root() { [[ $EUID -eq 0 ]] || { echo "Run with sudo: sudo madness $*"; exit 1; }; }
+
+case "${1:-help}" in
+  status)
+    echo "== Role: $ROLE"
+    compose ps --format 'table {{.Service}}\t{{.Status}}'
+    echo; echo "== Private link to the GPU box (SSH tunnel)"
+    if [[ $ROLE == vps ]]; then
+      if ss -tln | grep -q "127.0.0.1:18080 "; then echo "  connected"; else echo "  GPU box not connected"; fi
+    else
+      systemctl is-active -q madness-tunnel && echo "  connected" || echo "  not connected (journalctl -u madness-tunnel)"
+    fi
+    if [[ $ROLE == vps ]]; then
+      echo; echo "== Website: https://$(env_get DOMAIN)"
+      curl -fsS --max-time 10 "https://$(env_get DOMAIN)/api/health" && echo || echo "  not reachable yet"
+    else
+      echo; echo "== GPU"
+      nvidia-smi --query-gpu=name,memory.used,memory.total,utilization.gpu,temperature.gpu --format=csv,noheader || true
+      echo; echo "== Model"
+      curl -fsS --max-time 5 "http://127.0.0.1:8080/health" && echo || echo "  not running (madness logs)"
+      echo "  context pool $(env_get LLM_CTX) tokens, $(env_get LLM_PARALLEL) chats at once"
+    fi ;;
+  logs) shift; compose logs -f --tail 200 "$@" ;;
+  install-log) tail -f /var/log/madness-install.log ;;
+  restart) root "$@"; compose restart ;;
+  update)
+    root "$@"
+    git -C "$DIR" pull --ff-only
+    if [[ $ROLE == vps ]]; then compose up -d --build --remove-orphans; else compose pull && compose up -d; fi
+    docker image prune -f >/dev/null
+    echo "Updated." ;;
+  backup)
+    [[ $ROLE == vps ]] || { echo "Backups run on the VPS."; exit 1; }
+    mkdir -p "$DIR/backups"
+    f="$DIR/backups/madness-$(date +%F-%H%M).sql.gz"
+    compose exec -T db pg_dump -U madness madness | gzip >"$f"
+    ls -1t "$DIR"/backups/*.sql.gz | tail -n +15 | xargs -r rm --
+    echo "Backup saved: $f" ;;
+  restore)
+    root "$@"; [[ -f ${2:-} ]] || { echo "usage: sudo madness restore /opt/madness/backups/<file>.sql.gz"; exit 1; }
+    read -r -p "This REPLACES the current database with $2. Type yes: " a; [[ $a == yes ]] || exit 1
+    compose stop api
+    compose exec -T db psql -U madness -d postgres -c "DROP DATABASE madness WITH (FORCE);" -c "CREATE DATABASE madness OWNER madness;"
+    gunzip -c "$2" | compose exec -T db psql -q -U madness madness
+    compose start api; echo "Restored." ;;
+  pair)
+    root "$@"; [[ $ROLE == vps ]] || { echo "Run 'sudo madness pair' on the VPS."; exit 1; }
+    repo=$(git -C "$DIR" remote get-url origin); branch=$(git -C "$DIR" rev-parse --abbrev-ref HEAD)
+    python3 "$DIR/scripts/pair_server.py" "$(env_get DOMAIN)" "$(env_get PUBLIC_IP)" "$(env_get LLM_API_KEY)" "$repo" "$branch" ;;
+  domain)
+    root "$@"; [[ -n ${2:-} ]] || { echo "usage: sudo madness domain example.com   (point its DNS A record at $(env_get PUBLIC_IP) first)"; exit 1; }
+    sed -i "s|^DOMAIN=.*|DOMAIN=$2|" "$DIR/.env"
+    for f in /etc/caddy/sites/madness.caddy /etc/caddy/madness.caddy; do if [[ -f $f ]]; then old_site=$f; fi; done
+    sed "s|__DOMAIN__|$2|g" "$DIR/deploy/site.caddy.tmpl" >"$DIR/deploy/site.caddy"
+    if [[ -n ${old_site:-} ]]; then cp "$DIR/deploy/site.caddy" "$old_site" && caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null && systemctl reload caddy
+    else compose up -d edge; fi
+    echo "Now serving on https://$2" ;;
+  set)
+    root "$@"; [[ -n ${3:-} ]] || { echo "usage: sudo madness set KEY VALUE   (e.g. LLM_PARALLEL 12, LLM_CTX 98304)"; exit 1; }
+    if grep -qE "^$2=" "$DIR/.env"; then sed -i "s|^$2=.*|$2=$3|" "$DIR/.env"; else echo "$2=$3" >>"$DIR/.env"; fi
+    compose up -d; echo "$2=$3 applied." ;;
+  bench)
+    if [[ $ROLE == gpu ]]; then url=http://127.0.0.1:8080; else url=http://127.0.0.1:18080; fi
+    python3 "$DIR/scripts/bench.py" "$url" "$(env_get LLM_API_KEY)" "${2:-16}" ;;
+  help|*)
+    cat <<USAGE
+madness status            health of everything
+madness logs [service]    live logs (services: web api db redis | llm)
+madness install-log       follow the installer log
+madness bench [max]       measure GPU speed with 1,2,4,8,16 users at once
+sudo madness update       download the newest code and restart
+sudo madness restart      restart all containers
+sudo madness backup       database backup now (VPS; also runs daily)
+sudo madness restore F    restore a backup (VPS)
+sudo madness pair         connect a (new) GPU box (VPS)
+sudo madness domain D     switch to your own domain (VPS)
+sudo madness set K V      change a setting in .env and apply (e.g. LLM_PARALLEL 12)
+USAGE
+    ;;
+esac

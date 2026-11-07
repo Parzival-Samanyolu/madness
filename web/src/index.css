@@ -1,0 +1,43 @@
+@import "tailwindcss";
+@import "highlight.js/styles/github-dark.css";
+
+@theme {
+  --color-surface: #111110;
+  --color-panel: #1a1a19;
+  --color-line: #2c2c2a;
+  --color-ink: #f0efec;
+  --color-ink-2: #c3c2b7;
+  --color-ink-3: #8b8a82;
+  --color-accent: #3987e5;
+  --color-accent-2: #d95926;
+}
+
+html, body, #root { height: 100%; }
+body { background: var(--color-surface); color: var(--color-ink); color-scheme: dark;
+       font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+
+.prose-chat { line-height: 1.65; overflow-wrap: anywhere; }
+.prose-chat p { margin: 0.6em 0; }
+.prose-chat ul { list-style: disc; padding-left: 1.4em; margin: 0.5em 0; }
+.prose-chat ol { list-style: decimal; padding-left: 1.4em; margin: 0.5em 0; }
+.prose-chat h1, .prose-chat h2, .prose-chat h3 { font-weight: 650; margin: 1em 0 0.4em; }
+.prose-chat h1 { font-size: 1.35em; } .prose-chat h2 { font-size: 1.2em; } .prose-chat h3 { font-size: 1.05em; }
+.prose-chat a { color: var(--color-accent); text-decoration: underline; }
+.prose-chat :not(pre) > code { background: #2a2a28; padding: 0.1em 0.35em; border-radius: 4px; font-size: 0.9em; }
+.prose-chat pre { margin: 0; }
+.prose-chat pre code.hljs { background: transparent; padding: 0.9em 1em; font-size: 0.86em; }
+.prose-chat table { border-collapse: collapse; margin: 0.6em 0; display: block; overflow-x: auto; }
+.prose-chat th, .prose-chat td { border: 1px solid var(--color-line); padding: 0.35em 0.7em; }
+.prose-chat blockquote { border-left: 3px solid var(--color-line); padding-left: 0.9em; color: var(--color-ink-2); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; border-radius: .6rem;
+       padding: .55rem 1rem; font-weight: 600; font-size: .9rem; transition: background .15s, opacity .15s; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary { background: var(--color-accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #4b95ee; }
+.btn-ghost { background: transparent; color: var(--color-ink-2); border: 1px solid var(--color-line); }
+.btn-ghost:hover:not(:disabled) { background: #222220; color: var(--color-ink); }
+.input { width: 100%; background: var(--color-panel); border: 1px solid var(--color-line); border-radius: .6rem;
+         padding: .6rem .8rem; color: var(--color-ink); outline: none; }
+.input:focus { border-color: var(--color-accent); }
+.card { background: var(--color-panel); border: 1px solid var(--color-line); border-radius: .9rem; }
