@@ -6,7 +6,8 @@ It listens on 127.0.0.1:51821 and is reached over HTTPS through Caddy at https:/
 GET  /<code>           -> a small bash script that installs Madness on the GPU box
 POST /<code>/register  -> the GPU box sends its SSH public key; it gets the VPS host key + settings
 
-Stops after one successful pairing, or after 15 minutes.
+Stops after one successful pairing, or when the time runs out (MADNESS_PAIR_HOURS, default 0.25).
+The command to type on the GPU box is also written to /run/madness-pair.txt (root only).
 """
 import json
 import os
@@ -19,7 +20,8 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 51821
-TIMEOUT = 15 * 60
+TIMEOUT = int(float(os.environ.get("MADNESS_PAIR_HOURS", "0.25")) * 3600)  # default 15 minutes
+COMMAND_FILE = os.environ.get("MADNESS_PAIR_FILE", "/run/madness-pair.txt")
 REMOTE_PORT = 18080
 TUNNEL_USER = os.environ.get("MADNESS_TUNNEL_USER", "madness-tunnel")
 AUTH_KEYS = os.environ.get("MADNESS_AUTH_KEYS", f"/var/lib/{TUNNEL_USER}/.ssh/authorized_keys")
@@ -83,8 +85,15 @@ exec bash /opt/madness/install.sh gpu --pair '{base}'
 
     server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
+    expires = time.strftime("%Y-%m-%d %H:%M %Z", time.localtime(time.time() + TIMEOUT))
+    try:
+        fd = os.open(COMMAND_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(f"curl -fsSL {base} | sudo bash\nexpires {expires}\n")
+    except OSError:
+        pass
     print(f"""
-  Pairing mode is on for 15 minutes.
+  Pairing mode is on until {expires}.
 
   On the GPU box (Fedora, logged in at its keyboard) type exactly:
 
@@ -94,6 +103,10 @@ exec bash /opt/madness/install.sh gpu --pair '{base}'
     paired = done.wait(TIMEOUT)
     time.sleep(2)  # let the last response finish sending
     server.shutdown()
+    try:
+        os.remove(COMMAND_FILE)
+    except OSError:
+        pass
     if not paired:
         print("\n  Pairing timed out. Run 'sudo madness pair' again when the GPU box is ready.")
     sys.exit(0 if paired else 2)
