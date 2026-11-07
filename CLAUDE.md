@@ -39,7 +39,7 @@ GPU box: llama.cpp server-cuda on 127.0.0.1:8080; madness-tunnel.service runs ss
 - [x] Code complete. 19 API tests pass, and the website was checked in a headless browser.
 - [x] VPS installed on oracle-amd1 and verified live (HTTPS, login, API returns 503 "model offline" as expected).
 - [ ] **GPU box: not set up yet.** The owner will install Fedora KDE by following `docs/SETUP-FEDORA.md`.
-- [ ] Pairing: a 24-hour pairing window is open on amd1. The command is in the Apple Note.
+- [ ] Pairing: a 24-hour pairing window is open on amd1 until **2026-11-08 14:57 UTC**. The command is in the Apple Note.
   - Show it again: `ssh oracle-amd1 sudo madness pair-command`.
   - Open a new window: `ssh oracle-amd1 sudo madness pair 24`. Then update the Apple Note with the new command.
 - [ ] After the GPU box connects:
