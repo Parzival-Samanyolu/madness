@@ -61,7 +61,7 @@ GPU box: llama.cpp server-cuda on 127.0.0.1:8080; madness-tunnel.service runs ss
   - **Memory**: table `memories` plus `users.memory_enabled` (migration 0002); code in `api/app/memory.py`.
     - After a web chat reply, a background low-effort request pulls out lasting facts, only if the message looks personal (regex gate).
     - Saved facts are added to the system prompt. Users manage them in Settings → Memory.
-- [x] **2026-11-09, evening (migration 0003): features the owner picked in "what to build next":**
+- [x] **2026-11-09, evening (migration 0003, deployed + live-tested): features the owner picked in "what to build next":**
   - Chat search now covers message text (`GET /api/conversations/search`), with snippets in the sidebar. Chats can be **pinned**.
   - **AI chat titles**: after the first reply, a low-effort request writes a 2-6 word title (`make_title` in `routers/chat.py`).
     The chat stream sends `done` first, then the `title` and `memory` events, so the input box unlocks right away.
