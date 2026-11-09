@@ -1,5 +1,10 @@
-"""Talks to the model server (llama.cpp in production, mock-llm in dev)."""
+"""Talks to the model server (llama.cpp in production, mock-llm in dev).
+
+If the GPU box is offline and FALLBACK_LLM_API_KEY is set, requests go to the fallback
+server (OpenRouter free models) instead, and switch back by themselves once the GPU box is up.
+"""
 import json
+import time
 from collections.abc import AsyncIterator
 
 import httpx
@@ -14,14 +19,47 @@ def set_transport(t: httpx.AsyncBaseTransport | None):
     _transport = t
 
 
-def client() -> httpx.AsyncClient:
+def client(fallback: bool = False) -> httpx.AsyncClient:
     s = get_settings()
+    if fallback:
+        url, key = s.fallback_llm_url, s.fallback_llm_api_key
+        extra = {"X-Title": s.app_name}
+    else:
+        url, key, extra = s.llm_url, s.llm_api_key, {}
     return httpx.AsyncClient(
-        base_url=s.llm_url,
-        headers={"Authorization": f"Bearer {s.llm_api_key}"} if s.llm_api_key else {},
+        base_url=url,
+        headers={**extra, **({"Authorization": f"Bearer {key}"} if key else {})},
         transport=_transport,
         timeout=httpx.Timeout(connect=10, read=600, write=60, pool=60),
     )
+
+
+_primary_cache = {"ok": False, "at": 0.0}
+
+
+async def use_fallback() -> bool:
+    """True when the GPU box is offline and a fallback is configured (health checked at most every 15s)."""
+    if not get_settings().fallback_llm_api_key:
+        return False
+    now = time.monotonic()
+    if now - _primary_cache["at"] > 15:
+        _primary_cache["ok"], _primary_cache["at"] = await health(), now
+    return not _primary_cache["ok"]
+
+
+def for_fallback(body: dict) -> dict:
+    """Turn a llama.cpp-style request into an OpenRouter one."""
+    out = dict(body)
+    models = [m.strip() for m in get_settings().fallback_models.split(",") if m.strip()]
+    out["model"] = models[0]
+    if len(models) > 1:
+        out["models"] = models  # OpenRouter tries these in order
+    kw = out.pop("chat_template_kwargs", None) or {}
+    effort = kw.get("reasoning_effort") or out.pop("reasoning_effort", None)
+    out.pop("reasoning_effort", None)
+    if effort in ("low", "medium", "high"):
+        out["reasoning"] = {"effort": effort}
+    return out
 
 
 def estimate_tokens(text: str) -> int:
@@ -62,19 +100,34 @@ class StreamResult:
 
 async def stream_chat(body: dict, result: StreamResult) -> AsyncIterator[bytes]:
     """Yields raw SSE lines from the model server while collecting text + usage."""
-    async with client() as c:
-        async with c.stream("POST", "/v1/chat/completions", json=body) as r:
+    fb = await use_fallback()
+    async with client(fb) as c:
+        async with c.stream("POST", "/v1/chat/completions", json=for_fallback(body) if fb else body) as r:
             if r.status_code != 200:
                 text = (await r.aread()).decode(errors="replace")[:500]
                 raise LLMError(r.status_code, text)
             async for line in r.aiter_lines():
-                if not line:
+                if not line or line.startswith(":"):  # skip blank lines and keep-alive comments
                     continue
                 if line.startswith("data:"):
                     data = line[5:].strip()
                     if data != "[DONE]":
                         _collect(data, result)
                 yield (line + "\n\n").encode()
+
+
+def rename_model(line: bytes, name: str) -> bytes:
+    """Replace the real model name in a streamed chunk with the public one."""
+    if not line.startswith(b"data:") or line.startswith(b"data: [DONE]"):
+        return line
+    try:
+        chunk = json.loads(line[5:])
+    except ValueError:
+        return line
+    if isinstance(chunk, dict) and "model" in chunk:
+        chunk["model"] = name
+        return f"data: {json.dumps(chunk)}\n\n".encode()
+    return line
 
 
 def _collect(data: str, result: StreamResult):
@@ -90,12 +143,13 @@ def _collect(data: str, result: StreamResult):
     for choice in chunk.get("choices") or []:
         delta = choice.get("delta") or {}
         result.content += delta.get("content") or ""
-        result.reasoning += delta.get("reasoning_content") or ""
+        result.reasoning += delta.get("reasoning_content") or delta.get("reasoning") or ""
 
 
 async def complete_chat(body: dict) -> dict:
-    async with client() as c:
-        r = await c.post("/v1/chat/completions", json=body)
+    fb = await use_fallback()
+    async with client(fb) as c:
+        r = await c.post("/v1/chat/completions", json=for_fallback(body) if fb else body)
         if r.status_code != 200:
             raise LLMError(r.status_code, r.text[:500])
         return r.json()

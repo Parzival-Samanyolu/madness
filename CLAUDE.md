@@ -39,6 +39,7 @@ GPU box: llama.cpp server-cuda on 127.0.0.1:8080; madness-tunnel.service runs ss
 - [x] Code complete. 19 API tests pass, and the website was checked in a headless browser.
 - [x] VPS installed on oracle-amd1 and verified live (HTTPS, login, API returns 503 "model offline" as expected).
 - [ ] **GPU box: not set up yet.** The owner will install Fedora KDE by following `docs/SETUP-FEDORA.md`.
+  - On 2026-11-09 the owner said it will be "in a month or so" (around mid-December 2026). Open a fresh pairing window then.
 - [ ] Pairing: a 24-hour pairing window is open on amd1 until **2026-11-08 14:57 UTC**. The command is in the Apple Note.
   - Show it again: `ssh oracle-amd1 sudo madness pair-command`.
   - Open a new window: `ssh oracle-amd1 sudo madness pair 24`. Then update the Apple Note with the new command.
@@ -46,6 +47,14 @@ GPU box: llama.cpp server-cuda on 127.0.0.1:8080; madness-tunnel.service runs ss
   - Run `ssh oracle-amd1 madness status` (expect "connected").
   - Run `ssh oracle-amd1 madness bench` and report tok/s.
   - Raise or lower `LLM_PARALLEL` with the owner. Only the owner can change it, at the GPU box: `sudo madness set LLM_PARALLEL N`.
+- [ ] **Rebrand to Synapse (2026-11-09), built locally and NOT deployed or committed yet. Waiting for the owner's OK on screenshots.**
+  - Owner's choices: name **Synapse**, "made by **Samanyolu AI**", model **synapse-2**, modes low/medium/high (API: `reasoning_effort`), all plans get all modes.
+  - Friendly and clear, replies in the user's language. Brain-spark logo. Home page Anthropic-style with the headline "Chat, code and create".
+  - Chat, login and settings ChatGPT-style. Dark default with a light switch.
+  - Features: copy, regenerate, edit message, rename/delete chats, search chats, change password.
+  - New address `synapse.193-122-49-121.sslip.io`. The owner wants the old `madness.` address **turned off**.
+  - Internal names stay `madness` (CLI, /opt/madness, services, repo).
+  - The GPU-box pairing command contains the domain, so make a new pairing window after the switch.
 - [ ] Open brainstorm: "what to build next". The first question was asked and not answered yet. Ideas raised so far:
   - A change-password page (doesn't exist yet).
   - Stripe billing.

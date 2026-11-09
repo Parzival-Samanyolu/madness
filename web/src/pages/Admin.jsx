@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, fmt } from '../api'
+import { TopBar } from '../components/AppShell'
 
 function Stat({ label, value }) {
   return <div className="card p-4"><div className="text-xs text-ink-3">{label}</div><div className="mt-1 text-2xl font-bold">{value}</div></div>
@@ -20,12 +21,13 @@ export default function Admin() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
-      <h1 className="text-2xl font-bold">Admin</h1>
-      {error && <p role="alert" className="mt-2 text-sm text-red-300">{error}</p>}
+    <>
+    <TopBar title="Admin" />
+    <div className="flex-1 overflow-y-auto"><div className="mx-auto max-w-6xl px-4 pt-4 pb-10">
+      {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
       {stats && (
         <div className="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <Stat label="Model server" value={stats.model_online ? <span className="text-green-400">● Online</span> : <span className="text-red-300">○ Offline</span>} />
+          <Stat label={stats.model_online ? "GPU box" : stats.fallback_ready ? "GPU box offline, using" : "Model server"} value={stats.model_online ? <span className="text-[#3fb950]">● Online</span> : (stats.fallback_ready ? <span className="text-accent">○ OpenRouter</span> : <span className="text-danger">○ Offline</span>)} />
           <Stat label="Users" value={fmt(stats.users)} />
           <Stat label="Sign-ups (24h)" value={fmt(stats.signups_24h)} />
           <Stat label="Requests (24h)" value={fmt(stats.requests_24h)} />
@@ -41,12 +43,12 @@ export default function Admin() {
           <tbody>
             {users.map((u) => (
               <tr key={u.id} className="border-b border-line last:border-0">
-                <td className="p-3">{u.email}{u.is_admin && <span className="ml-2 rounded bg-[#262624] px-1.5 text-xs">admin</span>}</td>
+                <td className="p-3">{u.email}{u.is_admin && <span className="ml-2 rounded bg-raised px-1.5 text-xs">admin</span>}</td>
                 <td><select value={u.plan} onChange={(e) => patch(u, { plan: e.target.value })} aria-label={`Plan for ${u.email}`}
                             className="rounded border border-line bg-surface px-2 py-1"><option value="free">free</option><option value="pro">pro</option></select></td>
                 <td>{fmt(u.tokens_24h)}</td>
                 <td className="text-ink-3">{new Date(u.created_at + 'Z').toLocaleDateString()}</td>
-                <td>{u.is_banned ? <span className="text-red-300">Banned</span> : 'Active'}</td>
+                <td>{u.is_banned ? <span className="text-danger">Banned</span> : 'Active'}</td>
                 <td className="pr-3 text-right">
                   {!u.is_admin && <button className="btn btn-ghost py-1" onClick={() => patch(u, { is_banned: !u.is_banned })}>{u.is_banned ? 'Unban' : 'Ban'}</button>}
                 </td>
@@ -55,6 +57,7 @@ export default function Admin() {
           </tbody>
         </table>
       </div>
-    </div>
+    </div></div>
+    </>
   )
 }

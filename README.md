@@ -1,4 +1,6 @@
-# Madness
+# Madness (public brand: Synapse by Samanyolu AI)
+
+Users see **Synapse** and the model **synapse-2**. `madness` is only the internal name (CLI, folders, services).
 
 Your own AI service: a ChatGPT-style website plus an OpenAI-compatible API, running **gpt-oss-20b** on your own RTX 5060 Ti.
 
@@ -27,7 +29,7 @@ curl -fsSL https://raw.githubusercontent.com/Parzival-Samanyolu/madness/main/ins
 ```
 
 It asks for an admin email and password, then sets up the website at
-`https://madness.<your-ip-with-dashes>.sslip.io`. That's a free address that needs no sign-up, with real HTTPS.
+`https://synapse.<your-ip-with-dashes>.sslip.io`. That's a free address that needs no sign-up, with real HTTPS.
 Then run `sudo madness pair`. It prints a one-line HTTPS command to type on the GPU box.
 
 Only ports **22, 80 and 443** are needed, which most VPSes (including Oracle Cloud) already allow.

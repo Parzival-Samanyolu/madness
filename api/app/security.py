@@ -13,7 +13,8 @@ from .db import get_db, utcnow
 from .models import ApiKey, LoginSession, User
 
 COOKIE_NAME = "madness_session"
-KEY_PREFIX = "mad_sk_"
+KEY_PREFIX = "syn_sk_"
+OLD_KEY_PREFIXES = ("mad_sk_",)  # keys made before the Synapse rename still work
 _ph = PasswordHasher()
 
 
@@ -84,7 +85,7 @@ def admin_user(user: User = Depends(current_user)) -> User:
 def api_key_user(request: Request, db: Session = Depends(get_db)) -> tuple[User, ApiKey]:
     auth = request.headers.get("authorization", "")
     token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
-    if not token.startswith(KEY_PREFIX):
+    if not token.startswith((KEY_PREFIX, *OLD_KEY_PREFIXES)):
         raise HTTPException(401, {"message": "Missing or invalid API key", "type": "invalid_request_error"})
     key = db.scalar(select(ApiKey).where(ApiKey.key_hash == sha256(token)))
     if not key or key.revoked_at is not None:

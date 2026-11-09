@@ -31,7 +31,7 @@ class ApiKey(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(100))
-    prefix: Mapped[str] = mapped_column(String(20))  # shown in UI, e.g. mad_sk_ab12
+    prefix: Mapped[str] = mapped_column(String(20))  # shown in UI, e.g. syn_sk_ab12
     key_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

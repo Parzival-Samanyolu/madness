@@ -175,7 +175,7 @@ install_vps() {
   local ip; ip=$(curl -4 -fsS --max-time 10 https://api.ipify.org || curl -4 -fsS --max-time 10 https://ifconfig.me)
   [[ -n $ip ]] || die "Could not detect the public IP"
   env_set PUBLIC_IP "$ip"
-  [[ -n $(env_get DOMAIN) ]] || env_set DOMAIN "madness.${ip//./-}.sslip.io"
+  [[ -n $(env_get DOMAIN) ]] || env_set DOMAIN "synapse.${ip//./-}.sslip.io"
   [[ -n $(env_get SECRET_KEY) ]] || env_set SECRET_KEY "$(rand 64)"
   [[ -n $(env_get POSTGRES_PASSWORD) ]] || env_set POSTGRES_PASSWORD "$(rand 32)"
   [[ -n $(env_get LLM_API_KEY) ]] || env_set LLM_API_KEY "$(rand 48)"
