@@ -47,14 +47,17 @@ GPU box: llama.cpp server-cuda on 127.0.0.1:8080; madness-tunnel.service runs ss
   - Run `ssh oracle-amd1 madness status` (expect "connected").
   - Run `ssh oracle-amd1 madness bench` and report tok/s.
   - Raise or lower `LLM_PARALLEL` with the owner. Only the owner can change it, at the GPU box: `sudo madness set LLM_PARALLEL N`.
-- [ ] **Rebrand to Synapse (2026-11-09), built locally and NOT deployed or committed yet. Waiting for the owner's OK on screenshots.**
+- [x] **Rebrand to Synapse deployed 2026-11-09** (commit 9661275).
   - Owner's choices: name **Synapse**, "made by **Samanyolu AI**", model **synapse-2**, modes low/medium/high (API: `reasoning_effort`), all plans get all modes.
-  - Friendly and clear, replies in the user's language. Brain-spark logo. Home page Anthropic-style with the headline "Chat, code and create".
-  - Chat, login and settings ChatGPT-style. Dark default with a light switch.
-  - Features: copy, regenerate, edit message, rename/delete chats, search chats, change password.
-  - New address `synapse.193-122-49-121.sslip.io`. The owner wants the old `madness.` address **turned off**.
+  - Friendly and clear, replies in the user's language. Brain-spark logo. Home page Anthropic-style. Chat, login and settings ChatGPT-style. Dark default with a light switch.
   - Internal names stay `madness` (CLI, /opt/madness, services, repo).
-  - The GPU-box pairing command contains the domain, so make a new pairing window after the switch.
+- [x] **OpenRouter fallback is live.** `FALLBACK_LLM_API_KEY` is in `/opt/madness/.env`; the key has a $0 limit, so only free models work.
+  - Used automatically while the GPU box is offline. Models are in `FALLBACK_MODELS` (default: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free, then cohere/north-mini-code:free).
+  - The owner said: no Gemma ("gemmas dont work"), small models only (max 200B).
+- [ ] **New address: the owner wants DuckDNS** (not sslip). Waiting for them to create a subdomain at duckdns.org pointing to 193.122.49.121.
+  - Then run `sudo madness domain <name>.duckdns.org`.
+  - After that: turn the old madness.193-122-49-121.sslip.io off (it's dropped from Caddy automatically by `madness domain`), update the Apple Note, and open a new pairing window when the GPU box is ready.
+  - Backups from before the deploy are at /opt/madness/.env.bak-20261109 and /opt/madness/deploy/madness.caddy.bak-20261109.
 - [ ] Open brainstorm: "what to build next". The first question was asked and not answered yet. Ideas raised so far:
   - A change-password page (doesn't exist yet).
   - Stripe billing.
