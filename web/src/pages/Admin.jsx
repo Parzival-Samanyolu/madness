@@ -2,8 +2,29 @@ import { useEffect, useState } from 'react'
 import { api, fmt } from '../api'
 import { TopBar } from '../components/AppShell'
 
-function Stat({ label, value }) {
-  return <div className="card p-4"><div className="text-xs text-ink-3">{label}</div><div className="mt-1 text-2xl font-bold">{value}</div></div>
+function Stat({ label, value, note }) {
+  return (
+    <div className="card min-w-0 p-4">
+      <div className="text-xs text-ink-3">{label}</div>
+      <div className="mt-1 truncate text-2xl font-bold">{value}</div>
+      {note && <div className="mt-1 text-xs text-ink-3">{note}</div>}
+    </div>
+  )
+}
+
+function ModelStat({ stats }) {
+  const [dot, text, color, note] = stats.model_online
+    ? ['●', 'GPU box', 'text-[#3fb950]', 'Your own GPU is answering']
+    : stats.fallback_ready
+      ? ['●', 'OpenRouter', 'text-accent', 'GPU box offline, using free models']
+      : ['○', 'Offline', 'text-danger', 'No AI server is reachable']
+  return (
+    <div className="card min-w-0 p-4">
+      <div className="text-xs text-ink-3">AI model</div>
+      <div className={`mt-1 flex items-center gap-1.5 truncate text-xl font-bold ${color}`}><span className="text-sm">{dot}</span>{text}</div>
+      <div className="mt-1 text-xs text-ink-3">{note}</div>
+    </div>
+  )
 }
 
 export default function Admin() {
@@ -27,7 +48,7 @@ export default function Admin() {
       {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
       {stats && (
         <div className="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <Stat label={stats.model_online ? "GPU box" : stats.fallback_ready ? "GPU box offline, using" : "Model server"} value={stats.model_online ? <span className="text-[#3fb950]">● Online</span> : (stats.fallback_ready ? <span className="text-accent">○ OpenRouter</span> : <span className="text-danger">○ Offline</span>)} />
+          <ModelStat stats={stats} />
           <Stat label="Users" value={fmt(stats.users)} />
           <Stat label="Sign-ups (24h)" value={fmt(stats.signups_24h)} />
           <Stat label="Requests (24h)" value={fmt(stats.requests_24h)} />
