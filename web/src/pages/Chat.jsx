@@ -7,7 +7,7 @@ import { TopBar, useShell } from '../components/AppShell'
 import { Alert, Dropdown } from '../components/ui'
 import { LogoMark } from '../components/Logo'
 import {
-  ArrowUpIcon, CheckIcon, ChevronDown, ChevronRight, CopyIcon, EditIcon, RetryIcon, StopIcon,
+  ArrowUpIcon, CheckIcon, ChevronDown, ChevronRight, CopyIcon, EditIcon, RetryIcon, ShareIcon, SparkIcon, StopIcon,
 } from '../components/Icons'
 
 const MODES = [
@@ -96,6 +96,17 @@ function UserMessage({ m, canEdit, onEdit }) {
   )
 }
 
+// "Memory updated" note under a reply, like ChatGPT. Click it to see/manage memories in Settings.
+function MemoryNote({ facts, onOpen }) {
+  return (
+    <button onClick={onOpen} title={facts.join('\n')}
+            className="fade-up mt-2 inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-xs text-ink-2 hover:bg-hover">
+      <SparkIcon size={14} className="text-accent" />Memory updated
+      <span className="max-w-[16rem] truncate text-ink-3">· {facts.join(' · ')}</span>
+    </button>
+  )
+}
+
 function AssistantMessage({ m, isLast, canRegenerate, onRegenerate }) {
   return (
     <div className="group my-5">
@@ -164,7 +175,7 @@ export default function Chat() {
   const convId = id ? Number(id) : null
   const nav = useNavigate()
   const { user, refresh } = useAuth()
-  const { setConvs, loadConvs } = useShell()
+  const { convs, setConvs, loadConvs, openShare, openSettings } = useShell()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [effort, setEffortState] = useState(() => localStorage.getItem('synapse-effort') || 'medium')
@@ -179,13 +190,15 @@ export default function Chat() {
   const pendingRef = useRef(null) // message to send right after creating a conversation
   const startingRef = useRef(false) // a new conversation is being created
   const [starting, setStarting] = useState(false)
+  const runIdRef = useRef(0) // which send is the latest (a reply's stream stays open a bit after it's done)
+  const [memNote, setMemNote] = useState(null) // facts saved by the latest message
 
   const setEffort = (e) => { setEffortState(e); localStorage.setItem('synapse-effort', e) }
   const loadConv = (cid) => api(`/api/conversations/${cid}`)
     .then((c) => { setMessages(c.messages); setCtx(c.context) }).catch(() => nav('/chat'))
 
   useEffect(() => {
-    setError(''); stickRef.current = true
+    setError(''); stickRef.current = true; runIdRef.current++; setMemNote(null)
     if (!convId) { setMessages([]); setCtx(null); return }
     if (pendingRef.current) { const p = pendingRef.current; pendingRef.current = null; run({ content: p }, convId); return }
     setLoading(true); loadConv(convId).finally(() => setLoading(false))
@@ -216,7 +229,8 @@ export default function Chat() {
       } catch (e) { setError(e.message) } finally { startingRef.current = false; setStarting(false) }
       return
     }
-    setError(''); setBusy(true); stickRef.current = true
+    const myRun = ++runIdRef.current
+    setError(''); setBusy(true); stickRef.current = true; setMemNote(null)
     if (!body.regenerate && !body.edit_message_id) setInput('')
     const live = { role: 'assistant', content: '', reasoning: '', live: true }
     setMessages((m) => {
@@ -230,6 +244,27 @@ export default function Chat() {
     const ctrl = new AbortController(); abortRef.current = ctrl
     const patch = (fn) => setMessages((m) => { const c = [...m]; c[c.length - 1] = fn({ ...c[c.length - 1] }); return c })
     let thinkStart = null
+    let finished = false
+    // runs once: when the "done" event arrives (the title/memory may still follow) or when the stream ends
+    const finish = () => {
+      if (finished) return
+      finished = true
+      setBusy(false); setStatus(''); abortRef.current = null
+      refresh(); loadConvs()
+      if (runIdRef.current !== myRun) return // the user already moved to another chat
+      patch((a) => ({ ...a, live: false }))
+      // reload to get real message ids, but keep the "Thought for Xs" label we measured
+      api(`/api/conversations/${targetId}`).then((c) => {
+        if (runIdRef.current !== myRun) return
+        setMessages((old) => {
+          const secs = old[old.length - 1]?.seconds
+          const msgs = c.messages
+          if (secs && msgs.length && msgs[msgs.length - 1].role === 'assistant') msgs[msgs.length - 1].seconds = secs
+          return msgs
+        })
+        setCtx(c.context)
+      }).catch(() => {})
+    }
     try {
       await streamChat(targetId, { ...body, reasoning_effort: effort }, (ev) => {
         if (ev.t === 'r') { thinkStart ??= Date.now(); patch((a) => ({ ...a, reasoning: a.reasoning + ev.v })) }
@@ -240,25 +275,15 @@ export default function Chat() {
         else if (ev.t === 'error') setError(ev.v)
         else if (ev.t === 'compressing') setStatus('Summarizing earlier messages to free up memory…')
         else if (ev.t === 'compressed') setStatus('')
-        else if (ev.t === 'done' && ev.context) setCtx(ev.context)
+        else if (ev.t === 'done') { if (ev.context) setCtx(ev.context); finish() }
+        else if (ev.t === 'memory') { if (runIdRef.current === myRun) setMemNote(ev.v) }
         else if (ev.t === 'title') setConvs((cs) => cs.map((c) => (c.id === targetId ? { ...c, title: ev.v } : c)))
       }, ctrl.signal)
     } catch (e) {
       if (e.name !== 'AbortError') setError(e.message)
     } finally {
-      patch((a) => ({ ...a, live: false }))
-      setBusy(false); setStatus(''); abortRef.current = null
-      refresh(); loadConvs()
-      // reload to get real message ids, but keep the "Thought for Xs" label we measured
-      api(`/api/conversations/${targetId}`).then((c) => {
-        setMessages((old) => {
-          const secs = old[old.length - 1]?.seconds
-          const msgs = c.messages
-          if (secs && msgs.length && msgs[msgs.length - 1].role === 'assistant') msgs[msgs.length - 1].seconds = secs
-          return msgs
-        })
-        setCtx(c.context)
-      }).catch(() => {})
+      finish()
+      if (runIdRef.current === myRun) loadConvs() // pick up the AI-written title
     }
   }
 
@@ -268,7 +293,15 @@ export default function Chat() {
 
   return (
     <>
-      <TopBar><ModelPicker effort={effort} setEffort={setEffort} /></TopBar>
+      <TopBar>
+        <ModelPicker effort={effort} setEffort={setEffort} />
+        {convId && messages.length > 0 && (
+          <button className="btn btn-ghost ml-auto mr-1" disabled={busy}
+                  onClick={() => openShare(convs.find((c) => c.id === convId) || { id: convId, title: 'this chat' })}>
+            <ShareIcon size={17} />Share
+          </button>
+        )}
+      </TopBar>
       {empty ? (
         <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-[12vh]">
           <div className="w-full max-w-3xl fade-up">
@@ -303,6 +336,7 @@ export default function Chat() {
                     ? <UserMessage m={m} canEdit={!busy && !!m.id} onEdit={(msg, text) => run({ content: text, edit_message_id: msg.id })} />
                     : <AssistantMessage m={m} isLast={i === lastAssistant} canRegenerate={!busy && i === lastAssistant}
                                         onRegenerate={() => run({ regenerate: true })} />}
+                  {i === lastAssistant && memNote?.length > 0 && <MemoryNote facts={memNote} onOpen={() => openSettings('memory')} />}
                 </div>
               ))}
               {!busy && messages.length > 0 && messages[messages.length - 1].role === 'user' && !error && (

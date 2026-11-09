@@ -1,4 +1,4 @@
-"""Settings > Memory: see, add and delete what Synapse remembers; turn memory on/off."""
+"""Settings > Memory: see, add, edit and delete what Synapse remembers; turn memory on/off."""
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import delete
@@ -44,6 +44,16 @@ def set_enabled(body: MemorySettings, user: User = Depends(current_user), db: Se
     user.memory_enabled = body.enabled
     db.commit()
     return {"enabled": user.memory_enabled}
+
+
+@router.patch("/{memory_id}")
+def edit_memory(memory_id: int, body: NewMemory, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    m = db.get(Memory, memory_id)
+    if not m or m.user_id != user.id:
+        raise HTTPException(404, "Memory not found")
+    m.content = body.content.strip()
+    db.commit()
+    return out(m)
 
 
 @router.delete("/{memory_id}")

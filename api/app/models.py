@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, true
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, false, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base, utcnow
@@ -17,6 +17,8 @@ class User(Base):
     stripe_customer_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # "Memory": Synapse remembers facts about the user across chats (can be turned off in Settings)
     memory_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    # "Help improve Synapse": user agreed that their chats may be used to train models (off by default)
+    training_opt_in: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
@@ -59,6 +61,7 @@ class Conversation(Base):
     # context compression: summary of every message with id <= summary_upto
     summary: Mapped[str] = mapped_column(Text, default="")
     summary_upto: Mapped[int] = mapped_column(Integer, default=0)
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
@@ -81,4 +84,15 @@ class Memory(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     content: Mapped[str] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SharedChat(Base):
+    """A public read-only snapshot of a conversation at /share/<token>. Deleting it unshares."""
+    __tablename__ = "shared_chats"
+    token: Mapped[str] = mapped_column(String(32), primary_key=True)
+    conversation_id: Mapped[int] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    messages_json: Mapped[str] = mapped_column(Text)  # [{"role": ..., "content": ...}]
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

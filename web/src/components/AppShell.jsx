@@ -6,9 +6,10 @@ import { useTheme } from '../theme'
 import { LogoMark } from './Logo'
 import { Confirm, Dropdown } from './ui'
 import SettingsModal from './SettingsModal'
+import ShareModal from './ShareModal'
 import {
-  BookIcon, ChartIcon, DotsIcon, EditIcon, GearIcon, KeyIcon, LogoutIcon, MoonIcon, NewChatIcon,
-  SearchIcon, ShieldIcon, SidebarIcon, SunIcon, TrashIcon, XIcon,
+  BookIcon, ChartIcon, DotsIcon, EditIcon, GearIcon, KeyIcon, LogoutIcon, MoonIcon, NewChatIcon, PinIcon,
+  SearchIcon, ShareIcon, ShieldIcon, SidebarIcon, SunIcon, TrashIcon, XIcon,
 } from './Icons'
 
 const ShellCtx = createContext(null)
@@ -18,17 +19,19 @@ export const useShell = () => useContext(ShellCtx)
 function groupByDate(convs) {
   const start = new Date(); start.setHours(0, 0, 0, 0)
   const day = 86400000
-  const groups = [['Today', []], ['Yesterday', []], ['Previous 7 days', []], ['Previous 30 days', []], ['Older', []]]
+  const pinned = convs.filter((c) => c.pinned)
+  convs = convs.filter((c) => !c.pinned)
+  const groups = [['Pinned', pinned], ['Today', []], ['Yesterday', []], ['Previous 7 days', []], ['Previous 30 days', []], ['Older', []]]
   for (const c of convs) {
     const t = new Date(c.updated_at + (String(c.updated_at).endsWith('Z') ? '' : 'Z')).getTime()
     const i = t >= start ? 0 : t >= start - day ? 1 : t >= start - 7 * day ? 2 : t >= start - 30 * day ? 3 : 4
-    groups[i][1].push(c)
+    groups[i + 1][1].push(c)
   }
   return groups.filter(([, list]) => list.length)
 }
 
-function ChatItem({ c, active, onPick }) {
-  const { renameConv, askDelete } = useShell()
+function ChatItem({ c, active, onPick, snippet }) {
+  const { renameConv, pinConv, askDelete, openShare } = useShell()
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(c.title)
   const save = () => { setEditing(false); if (title.trim() && title !== c.title) renameConv(c.id, title.trim()); else setTitle(c.title) }
@@ -42,12 +45,17 @@ function ChatItem({ c, active, onPick }) {
   }
   return (
     <div className={`group relative flex items-center rounded-lg ${active ? 'bg-hover' : 'hover:bg-hover'}`}>
-      <Link to={`/chat/${c.id}`} onClick={onPick} className="min-w-0 flex-1 truncate px-2.5 py-2 text-sm" title={c.title}>{c.title}</Link>
+      <Link to={`/chat/${c.id}`} onClick={onPick} className="min-w-0 flex-1 px-2.5 py-2 text-sm" title={c.title}>
+        <span className="block truncate">{c.title}</span>
+        {snippet && <span className="mt-0.5 line-clamp-2 block text-xs text-ink-3">{snippet}</span>}
+      </Link>
       <Dropdown align="right" menuClass="w-44" className={`${active ? '' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'}`}
         button={({ toggle }) => (
           <button onClick={toggle} className="icon-btn mr-1 p-1" aria-label={`Options for ${c.title}`}><DotsIcon size={16} /></button>
         )}>
         {(close) => (<>
+          <button className="menu-item" onClick={() => { close(); openShare(c) }}><ShareIcon size={16} />Share</button>
+          <button className="menu-item" onClick={() => { close(); pinConv(c.id, !c.pinned) }}><PinIcon size={16} />{c.pinned ? 'Unpin' : 'Pin'}</button>
           <button className="menu-item" onClick={() => { close(); setTitle(c.title); setEditing(true) }}><EditIcon size={16} />Rename</button>
           <button className="menu-item text-danger" onClick={() => { close(); askDelete(c) }}><TrashIcon size={16} />Delete</button>
         </>)}
@@ -98,7 +106,18 @@ function Sidebar() {
   const nav = useNavigate()
   const [q, setQ] = useState('')
   const [searching, setSearching] = useState(false)
-  const shown = q ? convs.filter((c) => c.title.toLowerCase().includes(q.toLowerCase())) : convs
+  const [results, setResults] = useState(null) // server search: titles and message text
+  useEffect(() => {
+    const term = q.trim()
+    if (term.length < 2) { setResults(null); return }
+    const ctrl = new AbortController()
+    const t = setTimeout(() => api(`/api/conversations/search?q=${encodeURIComponent(term)}`, { signal: ctrl.signal })
+      .then(setResults).catch(() => {}), 250)
+    return () => { clearTimeout(t); ctrl.abort() }
+  }, [q])
+  const quick = q ? convs.filter((c) => c.title.toLowerCase().includes(q.toLowerCase())) : convs
+  const shown = results ?? quick
+  const snippets = Object.fromEntries((results || []).map((r) => [r.id, r.snippet]))
   const closeMobile = () => setSideOpen(false)
 
   return (
@@ -132,7 +151,7 @@ function Sidebar() {
           {groupByDate(shown).map(([label, list]) => (
             <div key={label} className="mb-4">
               <h3 className="px-2.5 pb-1 text-xs font-medium text-ink-3">{label}</h3>
-              {list.map((c) => <ChatItem key={c.id} c={c} active={String(c.id) === id} onPick={closeMobile} />)}
+              {list.map((c) => <ChatItem key={c.id} c={c} active={String(c.id) === id} onPick={closeMobile} snippet={snippets[c.id]} />)}
             </div>
           ))}
         </nav>
@@ -148,8 +167,9 @@ export default function AppShell() {
   const [convs, setConvs] = useState([])
   const [sideOpen, setSideOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('synapse-sidebar') === 'closed')
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false) // false or the tab to open
   const [toDelete, setToDelete] = useState(null)
+  const [toShare, setToShare] = useState(null)
 
   const loadConvs = useCallback(() => api('/api/conversations').then(setConvs).catch(() => {}), [])
   useEffect(() => { loadConvs() }, [loadConvs])
@@ -157,8 +177,13 @@ export default function AppShell() {
 
   const value = useMemo(() => ({
     convs, setConvs, loadConvs, sideOpen, setSideOpen, collapsed, setCollapsed,
-    openSettings: () => setSettingsOpen(true),
+    openSettings: (tab = 'general') => setSettingsOpen(typeof tab === 'string' ? tab : 'general'),
     askDelete: setToDelete,
+    openShare: setToShare,
+    pinConv: async (cid, pinned) => {
+      setConvs((cs) => cs.map((c) => (c.id === cid ? { ...c, pinned } : c)))
+      await api(`/api/conversations/${cid}`, { method: 'PATCH', body: { pinned } }).catch(loadConvs)
+    },
     renameConv: async (cid, title) => {
       setConvs((cs) => cs.map((c) => (c.id === cid ? { ...c, title } : c)))
       await api(`/api/conversations/${cid}`, { method: 'PATCH', body: { title } }).catch(loadConvs)
@@ -176,7 +201,8 @@ export default function AppShell() {
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col bg-surface"><Outlet /></div>
       </div>
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsModal open={!!settingsOpen} initialTab={settingsOpen || 'general'} onClose={() => setSettingsOpen(false)} />
+      <ShareModal conv={toShare} onClose={() => setToShare(null)} />
       <Confirm open={!!toDelete} onClose={() => setToDelete(null)} title="Delete chat?"
                body={<>This will delete <strong className="text-ink">{toDelete?.title}</strong>. You can't undo this.</>}
                onConfirm={() => value.deleteConv(toDelete.id)} />

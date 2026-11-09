@@ -5,7 +5,7 @@ import { useAuth } from '../auth'
 import { useTheme } from '../theme'
 import { useShell } from './AppShell'
 import { Alert, Confirm, Modal } from './ui'
-import { DatabaseIcon, GearIcon, MoonIcon, SparkIcon, SunIcon, TrashIcon, UserIcon, XIcon } from './Icons'
+import { DatabaseIcon, EditIcon, GearIcon, MoonIcon, SparkIcon, SunIcon, TrashIcon, UserIcon, XIcon } from './Icons'
 
 const TABS = [['general', 'General', GearIcon], ['memory', 'Memory', SparkIcon], ['account', 'Account', UserIcon], ['data', 'Data controls', DatabaseIcon]]
 
@@ -69,6 +69,34 @@ function Switch({ on, onChange, label }) {
   )
 }
 
+function MemoryItem({ m, run }) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(m.content)
+  const save = () => {
+    setEditing(false)
+    if (text.trim() && text.trim() !== m.content) run(() => api(`/api/memories/${m.id}`, { method: 'PATCH', body: { content: text.trim() } }))
+    else setText(m.content)
+  }
+  if (editing) {
+    return (
+      <li className="px-2 py-1.5">
+        <input autoFocus className="input py-1.5 text-sm" maxLength={500} value={text} aria-label="Edit memory"
+               onChange={(e) => setText(e.target.value)} onBlur={save}
+               onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setText(m.content); setEditing(false) } }} />
+      </li>
+    )
+  }
+  return (
+    <li className="group flex items-start gap-1 px-3.5 py-2.5 text-sm">
+      <span className="flex-1">{m.content}</span>
+      <button className="icon-btn -my-1 p-1 opacity-60 group-hover:opacity-100" aria-label={`Edit: ${m.content}`} title="Edit"
+              onClick={() => { setText(m.content); setEditing(true) }}><EditIcon size={15} /></button>
+      <button className="icon-btn -my-1 p-1 opacity-60 group-hover:opacity-100" aria-label={`Forget: ${m.content}`} title="Forget"
+              onClick={() => run(() => api(`/api/memories/${m.id}`, { method: 'DELETE' }))}><TrashIcon size={15} /></button>
+    </li>
+  )
+}
+
 function MemoryTab() {
   const [data, setData] = useState(null)
   const [text, setText] = useState('')
@@ -97,13 +125,7 @@ function MemoryTab() {
         ? <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-ink-3">Nothing saved yet. Tell Synapse about yourself in a chat, or add something above.</p>
         : (
           <ul className="max-h-64 divide-y divide-line overflow-y-auto rounded-xl border border-line">
-            {data.memories.map((m) => (
-              <li key={m.id} className="group flex items-start gap-3 px-3.5 py-2.5 text-sm">
-                <span className="flex-1">{m.content}</span>
-                <button className="icon-btn -my-1 p-1 opacity-60 group-hover:opacity-100" aria-label={`Forget: ${m.content}`} title="Forget"
-                        onClick={() => run(() => api(`/api/memories/${m.id}`, { method: 'DELETE' }))}><TrashIcon size={15} /></button>
-              </li>
-            ))}
+            {data.memories.map((m) => <MemoryItem key={m.id} m={m} run={run} />)}
           </ul>
         )}
       <Confirm open={ask} onClose={() => setAsk(false)} title="Delete all memories?" action="Delete all"
@@ -129,6 +151,25 @@ function Account({ onClose }) {
   )
 }
 
+function TrainingSwitch() {
+  const { user, setUser } = useAuth()
+  const [error, setError] = useState('')
+  const set = async (enabled) => {
+    setError('')
+    try { await api('/api/settings/training', { method: 'PUT', body: { enabled } }); setUser({ ...user, training_opt_in: enabled }) }
+    catch (e) { setError(e.message) }
+  }
+  return (
+    <>
+      <Row label="Help improve Synapse"
+           hint="Allow Samanyolu AI to use your chats to train and improve future Synapse models. Your email is never included. You can turn this off any time.">
+        <Switch on={!!user?.training_opt_in} label="Help improve Synapse" onChange={set} />
+      </Row>
+      {error && <Alert>{error}</Alert>}
+    </>
+  )
+}
+
 function Data({ onClose }) {
   const { convs, setConvs } = useShell()
   const [ask, setAsk] = useState(false)
@@ -139,6 +180,7 @@ function Data({ onClose }) {
   }
   return (
     <>
+      <TrainingSwitch />
       <Row label="Delete all chats" hint={`${convs.length} chat${convs.length === 1 ? '' : 's'}`}>
         <button className="btn btn-danger" disabled={!convs.length} onClick={() => setAsk(true)}>Delete all</button>
       </Row>
@@ -148,8 +190,9 @@ function Data({ onClose }) {
   )
 }
 
-export default function SettingsModal({ open, onClose }) {
-  const [tab, setTab] = useState('general')
+export default function SettingsModal({ open, onClose, initialTab = 'general' }) {
+  const [tab, setTab] = useState(initialTab)
+  useEffect(() => { if (open) setTab(initialTab) }, [open, initialTab])
   const Body = { general: General, memory: MemoryTab, account: Account, data: Data }[tab]
   return (
     <Modal open={open} onClose={onClose} className="max-w-2xl">

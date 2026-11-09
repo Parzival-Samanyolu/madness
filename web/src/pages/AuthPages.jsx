@@ -11,6 +11,7 @@ function AuthForm({ mode }) {
   const [step, setStep] = useState('email') // email -> password, like ChatGPT
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [train, setTrain] = useState(false) // "Help improve Synapse", off unless ticked
   const { user, setUser } = useAuth()
   const nav = useNavigate()
   const [params] = useSearchParams()
@@ -25,7 +26,7 @@ function AuthForm({ mode }) {
     if (step === 'email') { setStep('password'); setError(''); return }
     setBusy(true); setError('')
     try {
-      const u = await api(`/api/auth/${mode}`, { method: 'POST', body: { email, password } })
+      const u = await api(`/api/auth/${mode}`, { method: 'POST', body: isSignup ? { email, password, training_opt_in: train } : { email, password } })
       setUser(u)
       nav(dest)
     } catch (err) { setError(err.message) } finally { setBusy(false) }
@@ -49,6 +50,12 @@ function AuthForm({ mode }) {
                      minLength={isSignup ? 8 : undefined} placeholder={isSignup ? 'Password (at least 8 characters)' : 'Password'}
                      aria-label="Password" autoComplete={isSignup ? 'new-password' : 'current-password'}
                      value={password} onChange={(e) => setPassword(e.target.value)} />
+            )}
+            {isSignup && step === 'password' && (
+              <label className="flex cursor-pointer items-start gap-2.5 px-2 text-left text-xs text-ink-2">
+                <input type="checkbox" className="mt-0.5 accent-accent" checked={train} onChange={(e) => setTrain(e.target.checked)} />
+                <span>Help improve Synapse: allow my chats to be used to train future models. Optional, and you can change it in Settings.</span>
+              </label>
             )}
             {error && <Alert>{error}</Alert>}
             <button className="btn btn-primary w-full py-3 text-[0.95rem]" disabled={busy}>

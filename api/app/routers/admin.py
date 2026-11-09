@@ -1,10 +1,12 @@
 """Admin panel API: overview stats, users (with details and actions), activity feed, system info."""
+import json
 import secrets
 import time
 from datetime import timedelta
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -126,7 +128,7 @@ def user_detail(user_id: int, admin: User = Depends(admin_user), db: Session = D
     plan = PLANS.get(u.plan) or PLANS["free"]
     return {
         "id": u.id, "email": u.email, "plan": u.plan, "is_admin": u.is_admin, "is_banned": u.is_banned,
-        "created_at": u.created_at,
+        "created_at": u.created_at, "training_opt_in": u.training_opt_in,
         "last_active": db.scalar(select(func.max(Usage.created_at)).where(Usage.user_id == u.id)),
         "tokens_today": tokens_used_today(u.id), "tokens_per_day": plan.tokens_per_day,
         "tokens_7d": _tokens(db, Usage.user_id == u.id, Usage.created_at >= now - timedelta(days=7)),
@@ -252,3 +254,49 @@ async def system(admin: User = Depends(admin_user)):
         "plans": [p.model_dump() for p in PLANS.values()],
         "app_name": s.app_name, "company_name": s.company_name,
     }
+
+
+def _training_convs(db: Session) -> list[Conversation]:
+    opted_in = select(User.id).where(User.training_opt_in.is_(True))
+    return db.scalars(select(Conversation).where(Conversation.user_id.in_(opted_in)).order_by(Conversation.id)).all()
+
+
+def training_rows(db: Session, reasoning: bool = True) -> list[dict]:
+    """One {"messages": [...]} row per chat, only from users who turned on "Help improve Synapse".
+    No emails or ids: just the conversation. Assistant reasoning goes in a separate "thinking" field."""
+    out = []
+    for c in _training_convs(db):
+        msgs = db.scalars(select(Message).where(Message.conversation_id == c.id).order_by(Message.id)).all()
+        rows = []
+        for m in msgs:
+            if not m.content.strip():
+                continue
+            if rows and rows[-1]["role"] == m.role:  # e.g. an unanswered message: keep the turns alternating
+                rows.pop()
+            row = {"role": m.role, "content": m.content}
+            if m.role == "assistant" and reasoning and m.reasoning.strip():
+                row["thinking"] = m.reasoning
+            rows.append(row)
+        while rows and rows[0]["role"] != "user":
+            rows.pop(0)
+        while rows and rows[-1]["role"] != "assistant":
+            rows.pop()
+        if rows:
+            out.append({"messages": rows})
+    return out
+
+
+@router.get("/training/stats")
+def training_stats(admin: User = Depends(admin_user), db: Session = Depends(get_db)):
+    rows = training_rows(db, reasoning=False)
+    return {"users_opted_in": _count(db, User, User.training_opt_in.is_(True)), "users": _count(db, User),
+            "conversations": len(rows), "turns": sum(len(r["messages"]) // 2 for r in rows)}
+
+
+@router.get("/training/export")
+def training_export(reasoning: bool = True, admin: User = Depends(admin_user), db: Session = Depends(get_db)):
+    """Download a JSONL file (one chat per line, OpenAI fine-tuning "messages" format)."""
+    body = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in training_rows(db, reasoning))
+    name = f"synapse-training-{utcnow():%Y-%m-%d}.jsonl"
+    return Response(body, media_type="application/x-ndjson",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})

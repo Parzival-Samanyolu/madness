@@ -13,6 +13,7 @@ import Usage from './pages/Usage'
 import Docs from './pages/Docs'
 import Admin from './pages/Admin'
 import Pricing from './pages/Pricing'
+import Shared from './pages/Shared'
 
 function NotFound() {
   return (
@@ -39,6 +40,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           {/* login / sign-up: standalone */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/share/:token" element={<Shared />} />
           {/* public pages: warm editorial style */}
           <Route element={<Layout />}>
             <Route path="/" element={<Landing />} />

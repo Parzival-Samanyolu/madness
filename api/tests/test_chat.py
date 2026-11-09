@@ -16,8 +16,10 @@ def test_web_chat_saves_history(client):
         ev = events(r)
     kinds = {e["t"] for e in ev}
     assert {"title", "r", "c", "done"} <= kinds
+    titles = [e["v"] for e in ev if e["t"] == "title"]
+    assert titles[0] == "Write hello world" and len(titles) == 2  # placeholder, then the AI-written title
     full = client.get(f"/api/conversations/{conv['id']}").json()
-    assert full["title"] == "Write hello world"
+    assert full["title"] == titles[-1]
     assert [m["role"] for m in full["messages"]] == ["user", "assistant"]
     assert "Mock reply" in full["messages"][1]["content"]
     assert full["messages"][1]["reasoning"]

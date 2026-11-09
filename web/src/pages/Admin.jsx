@@ -3,7 +3,7 @@ import { api, fmt } from '../api'
 import { useAuth } from '../auth'
 import { TopBar } from '../components/AppShell'
 import { Alert, Confirm, Modal } from '../components/ui'
-import { RetryIcon, SearchIcon } from '../components/Icons'
+import { DownloadIcon, RetryIcon, SearchIcon } from '../components/Icons'
 import { SERIES, UsageChart } from './Usage'
 
 const TABS = [['overview', 'Overview'], ['users', 'Users'], ['activity', 'Activity'], ['system', 'System']]
@@ -207,7 +207,7 @@ function UserDrawer({ id, onClose, onChanged }) {
           <div className="flex flex-wrap items-center gap-2 text-sm">
             {d.plan === 'pro' ? <Badge tone="accent">Pro</Badge> : <Badge>Free</Badge>}
             {d.is_admin && <Badge>admin</Badge>}{d.is_banned && <Badge tone="danger">banned</Badge>}
-            <span className="text-ink-3">Joined {utc(d.created_at).toLocaleString()} · last active {ago(d.last_active)}</span>
+            <span className="text-ink-3">Joined {utc(d.created_at).toLocaleString()} · last active {ago(d.last_active)}{d.training_opt_in && " · helps train Synapse"}</span>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat label="Tokens today" value={short(d.tokens_today)} note={`of ${short(d.tokens_per_day)} per day`} />
@@ -294,6 +294,34 @@ function Activity({ openUser, refreshKey }) {
 }
 
 /* ---------- System ---------- */
+// Chats from users who turned on "Help improve Synapse", as a JSONL file for fine-tuning.
+function TrainingData() {
+  const [st, setSt] = useState(null)
+  const [reasoning, setReasoning] = useState(true)
+  useEffect(() => { api('/api/admin/training/stats').then(setSt).catch(() => {}) }, [])
+  return (
+    <Section title="Training data" className="lg:col-span-2"
+             right={<a href={`/api/admin/training/export?reasoning=${reasoning}`} download
+                       className={`btn btn-primary ${st?.conversations ? '' : 'pointer-events-none opacity-40'}`}><DownloadIcon size={16} />Download .jsonl</a>}>
+      <dl className="grid gap-3 text-sm sm:grid-cols-3">
+        {[['Users who agreed', st ? `${fmt(st.users_opted_in)} of ${fmt(st.users)}` : '…'],
+          ['Chats', st ? fmt(st.conversations) : '…'], ['Question + answer pairs', st ? fmt(st.turns) : '…']].map(([k, v]) => (
+          <div key={k}><dt className="text-ink-3">{k}</dt><dd className="mt-0.5 text-xl font-semibold tabular-nums">{v}</dd></div>
+        ))}
+      </dl>
+      <label className="mt-4 flex items-center gap-2 text-sm">
+        <input type="checkbox" className="accent-accent" checked={reasoning} onChange={(e) => setReasoning(e.target.checked)} />
+        Include Synapse's thinking (as a separate <code className="font-mono text-xs">thinking</code> field)
+      </label>
+      <p className="mt-3 text-xs text-ink-3">
+        One chat per line in the standard <code className="font-mono">{'{"messages": [...]}'}</code> format. Only users who turned on
+        "Help improve Synapse" (at sign-up or in Settings → Data controls) are included. Emails and names of accounts are not in the file,
+        but people may have typed personal details into their chats, so keep the file private.
+      </p>
+    </Section>
+  )
+}
+
 function System({ system }) {
   if (!system) return <p className="text-ink-3">Loading…</p>
   const or = system.openrouter
@@ -335,6 +363,7 @@ function System({ system }) {
         </div>
         <p className="mt-3 text-xs text-ink-3">Plans are set in api/app/config.py. Change a user's plan in the Users tab.</p>
       </Section>
+      <TrainingData />
     </div>
   )
 }
