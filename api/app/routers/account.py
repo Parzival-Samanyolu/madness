@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -36,3 +37,15 @@ def usage(days: int = 30, user: User = Depends(current_user), db: Session = Depe
             by_day[d][f"{source}_tokens"] = int(tokens or 0)
             by_day[d]["requests"] += int(count)
     return list(by_day.values())
+
+
+class TrainingSetting(BaseModel):
+    enabled: bool
+
+
+@router.put("/settings/training")
+def set_training(body: TrainingSetting, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Settings > Data controls > "Help improve Synapse": may this user's chats be used for training?"""
+    user.training_opt_in = body.enabled
+    db.commit()
+    return {"enabled": user.training_opt_in}

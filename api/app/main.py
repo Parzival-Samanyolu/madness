@@ -58,3 +58,4 @@ async def health():
 
 for r in (auth, keys, chat, account, admin, billing, openai_api, memories):
     app.include_router(r.router)
+app.include_router(chat.public)

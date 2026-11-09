@@ -14,23 +14,31 @@ from . import llm
 from .db import SessionLocal
 from .models import Memory, User
 
-MAX_MEMORIES = 60          # per user
+MAX_MEMORIES = 100         # per user
 MAX_PROMPT_CHARS = 4000    # how much memory text goes into the system prompt
 
 # Cheap gate so we don't spend a model request on every message: first-person words or
 # an explicit "remember" in the languages our users write in (English, Turkish, Azerbaijani, ...).
 _PERSONAL = re.compile(
-    r"\b(i|i'm|im|i've|my|me|mine|remember|call me|"
-    r"ben|benim|bana|beni|adım|ismim|hatırla|unutma|"
-    r"mən|mənim|mənə|məni|adım|yadda saxla|"
-    r"ich|mein|meine|mich|je|mon|ma|mes|yo|mi|mis)\b",
+    r"\b(i|i'm|im|i've|i'd|i'll|my|me|mine|myself|we|we're|our|us|remember|call me|"
+    r"prefer|from now on|always|never|"
+    r"ben|benim|bana|beni|bende|adım|ismim|biz|bizim|hatırla|unutma|tercih|"
+    r"mən|mənim|mənə|məni|məndə|biz|bizim|yadda saxla|"
+    r"ich|mein|meine|mich|wir|unser|je|j'ai|mon|ma|mes|nous|yo|mi|mis|"
+    r"я|меня|мне|мой|моя|мои|запомни)\b",
     re.IGNORECASE,
 )
+# Turkish/Azerbaijani put "I" in the verb ending: "çalışıyorum", "yaşayıram"
+_FIRST_PERSON_ENDING = re.compile(r"\w{3,}(yorum|ıyorum|iyorum|uyorum|üyorum|ıram|irəm|ıyam|iyəm|ırım|irim)\b", re.IGNORECASE)
+LONG_MESSAGE_WORDS = 40  # long messages often contain context worth keeping, even without "I"
 
 EXTRACT_PROMPT = """You maintain long-term memory for an AI assistant about ONE user.
 Read the user's latest message and decide if it reveals lasting facts worth remembering in future chats:
-their name, job, studies, location, family/pets, skills, ongoing projects, goals, tools they use, or preferences
-about how the assistant should answer. Ignore one-off questions, temporary moods, and anything already known.
+their name, age, job, studies, location, languages, family/pets, health or diet needs, skills and level,
+ongoing projects, goals, hobbies, tools/devices they use, likes and dislikes, or preferences about how the
+assistant should answer (length, tone, format, language). When in doubt and it would help personalize future
+answers, save it. Ignore one-off questions, temporary moods, and anything already known.
+If a new fact replaces an old one (e.g. they moved city), still save the new fact.
 If the user explicitly asks you to remember something, save it.
 Never save passwords, API keys, card numbers or other secrets.
 
@@ -44,7 +52,11 @@ _tasks: set[asyncio.Task] = set()  # keep references so background tasks aren't 
 
 
 def looks_personal(text: str) -> bool:
-    return bool(_PERSONAL.search(text or ""))
+    text = text or ""
+    if _PERSONAL.search(text) or _FIRST_PERSON_ENDING.search(text):
+        return True
+    # long prose (not a code paste) is worth one cheap check
+    return len(text.split()) >= LONG_MESSAGE_WORDS and text.count("```") == 0 and text.count(";") < 5
 
 
 def list_for(db, user_id: int) -> list[Memory]:
@@ -78,14 +90,14 @@ def parse_facts(text: str) -> list[str]:
     return [str(x).strip()[:500] for x in items if isinstance(x, str) and str(x).strip()][:5]
 
 
-async def extract_and_save(user_id: int, user_message: str):
-    """Background job: ask the model for new facts and store them. Never raises."""
+async def extract_and_save(user_id: int, user_message: str) -> list[str]:
+    """Ask the model for new facts and store them. Returns the saved facts. Never raises."""
     try:
         s = SessionLocal()
         try:
             user = s.get(User, user_id)
             if not user or not user.memory_enabled:
-                return
+                return []
             known = [m.content for m in list_for(s, user_id)]
         finally:
             s.close()
@@ -99,8 +111,9 @@ async def extract_and_save(user_id: int, user_message: str):
         data = await llm.complete_chat(body)
         text = ((data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
         facts = [f for f in parse_facts(text) if f.lower() not in {k.lower() for k in known}]
+        facts = list(dict.fromkeys(facts))  # drop duplicates, keep order
         if not facts:
-            return
+            return []
         s = SessionLocal()
         try:
             for f in facts:
@@ -113,8 +126,10 @@ async def extract_and_save(user_id: int, user_message: str):
             s.commit()
         finally:
             s.close()
+        return facts
     except Exception as e:  # memory must never break chat
         print("memory extraction failed:", repr(e))
+        return []
 
 
 def remember_in_background(user_id: int, user_message: str):
@@ -123,3 +138,16 @@ def remember_in_background(user_id: int, user_message: str):
     t = asyncio.create_task(extract_and_save(user_id, user_message))
     _tasks.add(t)
     t.add_done_callback(_tasks.discard)
+
+
+async def remember(user_id: int, user_message: str, timeout: float = 25) -> list[str]:
+    """Like remember_in_background, but waits (up to `timeout`) so the chat can show "Memory updated"."""
+    if not looks_personal(user_message):
+        return []
+    t = asyncio.create_task(extract_and_save(user_id, user_message))
+    _tasks.add(t)
+    t.add_done_callback(_tasks.discard)
+    try:
+        return await asyncio.wait_for(asyncio.shield(t), timeout)
+    except asyncio.TimeoutError:
+        return []  # still finishes in the background

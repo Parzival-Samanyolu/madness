@@ -21,11 +21,16 @@ class Credentials(BaseModel):
     password: str
 
 
+class SignupBody(Credentials):
+    # "Help improve Synapse" checkbox on the sign-up page (off unless the user ticks it)
+    training_opt_in: bool = False
+
+
 def user_out(u: User) -> dict:
     plan = plan_for(u.plan)
     return {
         "id": u.id, "email": u.email, "plan": plan.model_dump(), "is_admin": u.is_admin,
-        "tokens_used_today": tokens_used_today(u.id),
+        "tokens_used_today": tokens_used_today(u.id), "training_opt_in": u.training_opt_in,
     }
 
 
@@ -36,7 +41,7 @@ def _set_cookie(resp: Response, token: str):
 
 
 @router.post("/signup")
-def signup(body: Credentials, request: Request, response: Response, db: Session = Depends(get_db)):
+def signup(body: SignupBody, request: Request, response: Response, db: Session = Depends(get_db)):
     s = get_settings()
     if not s.signups_open:
         raise HTTPException(403, "Sign-ups are closed right now")
@@ -49,7 +54,7 @@ def signup(body: Credentials, request: Request, response: Response, db: Session 
         "Too many sign-ups from your network, try again later")
     if db.scalar(select(User).where(func.lower(User.email) == email)):
         raise HTTPException(409, "An account with this email already exists")
-    user = User(email=email, password_hash=hash_password(body.password))
+    user = User(email=email, password_hash=hash_password(body.password), training_opt_in=body.training_opt_in)
     db.add(user)
     db.commit()
     _set_cookie(response, create_session(db, user))
