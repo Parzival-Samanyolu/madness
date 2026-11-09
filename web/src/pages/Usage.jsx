@@ -3,7 +3,7 @@ import { api, fmt } from '../api'
 import { TopBar } from '../components/AppShell'
 import { useAuth } from '../auth'
 
-const SERIES = [
+export const SERIES = [
   { key: 'web_tokens', label: 'Website chat', color: '#3987e5' },
   { key: 'api_tokens', label: 'API', color: '#d95926' },
 ]
@@ -15,7 +15,7 @@ function niceMax(v) {
 }
 
 // Stacked daily bars: 2px surface gaps between segments/bars, rounded top, hover tooltip.
-function UsageChart({ data }) {
+export function UsageChart({ data }) {
   const [hover, setHover] = useState(null)
   const W = 720, H = 240, L = 48, B = 24, T = 8
   const max = niceMax(Math.max(...data.map((d) => d.web_tokens + d.api_tokens)))
@@ -27,8 +27,8 @@ function UsageChart({ data }) {
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Tokens used per day, last 30 days">
         {ticks.map((t) => (
           <g key={t}>
-            <line x1={L} x2={W} y1={H - B - y(t)} y2={H - B - y(t)} stroke="#2c2c2a" strokeWidth="1" />
-            <text x={L - 6} y={H - B - y(t) + 4} textAnchor="end" fontSize="11" fill="#8b8a82">{fmt(t)}</text>
+            <line x1={L} x2={W} y1={H - B - y(t)} y2={H - B - y(t)} stroke="var(--c-line)" strokeWidth="1" />
+            <text x={L - 6} y={H - B - y(t) + 4} textAnchor="end" fontSize="11" fill="var(--c-ink-3)">{fmt(t)}</text>
           </g>
         ))}
         {data.map((d, i) => {
@@ -47,7 +47,7 @@ function UsageChart({ data }) {
                 base = top - 2
                 return <path key={s.key} d={path} fill={s.color} opacity={hover === null || hover === i ? 1 : 0.55} />
               })}
-              {i % 5 === 0 && <text x={L + i * bw + bw / 2} y={H - 6} textAnchor="middle" fontSize="11" fill="#8b8a82">{d.date.slice(5)}</text>}
+              {i % 5 === 0 && <text x={L + i * bw + bw / 2} y={H - 6} textAnchor="middle" fontSize="11" fill="var(--c-ink-3)">{d.date.slice(5)}</text>}
             </g>
           )
         })}
