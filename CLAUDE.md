@@ -54,6 +54,13 @@ GPU box: llama.cpp server-cuda on 127.0.0.1:8080; madness-tunnel.service runs ss
   - The owner said: no Gemma ("gemmas dont work"), small models only (max 200B).
 - [x] **Address switched to https://samanyoluai.duckdns.org on 2026-11-09.** The old madness.…sslip.io address is off. The Apple Note is updated. A live chat test passed.
   - Backups from before the deploy are at /opt/madness/.env.bak-20261109 and /opt/madness/deploy/madness.caddy.bak-20261109.
+- [x] **2026-11-09, later:**
+  - Fixed the duplicate empty chats on repeat Enter. Moved the theme script to `/theme-init.js` (the CSP blocked the inline one).
+  - Fallback models are now nvidia/nemotron-3.5-super-vl:free (primary, owner's choice) and recursive/flint-v1.0:free.
+  - New admin panel with Overview / Users (details + actions) / Activity / System tabs.
+  - **Memory**: table `memories` plus `users.memory_enabled` (migration 0002); code in `api/app/memory.py`.
+    - After a web chat reply, a background low-effort request pulls out lasting facts, only if the message looks personal (regex gate).
+    - Saved facts are added to the system prompt. Users manage them in Settings → Memory.
 - [ ] Open brainstorm: "what to build next". The first question was asked and not answered yet. Ideas raised so far:
   - ~~A change-password page~~ (done: Settings → Account).
   - Stripe billing.

@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import compress, limits, llm
+from .. import compress, limits, llm, memory
 from ..config import get_settings
 from ..db import SessionLocal, get_db, utcnow
 from ..models import Conversation, Message, User
@@ -107,17 +107,17 @@ def delete(conv_id: int, user: User = Depends(current_user), db: Session = Depen
     return {"ok": True}
 
 
-def build_history(msgs: list[Message], budget: int, summary: str = "") -> list[dict]:
+def build_history(msgs: list[Message], budget: int, summary: str = "", memories: str = "") -> list[dict]:
     """Summary (if any) + newest messages until the token budget is used.
     Truncation here is only a safety net; compression normally keeps us under budget."""
-    out, used = [], llm.estimate_tokens(summary)
+    out, used = [], llm.estimate_tokens(summary) + llm.estimate_tokens(memories)
     for m in reversed(msgs):
         cost = llm.estimate_tokens(m.content)
         if out and used + cost > budget:
             break
         out.append({"role": m.role, "content": m.content})
         used += cost
-    head = [{"role": "system", "content": system_prompt()}]
+    head = [{"role": "system", "content": system_prompt() + (f"\n\n{memories}" if memories else "")}]
     if summary:
         head.append({"role": "system", "content":
                      "Summary of the earlier part of this conversation (older messages were compressed):\n\n" + summary})
@@ -167,6 +167,7 @@ def send_message(conv_id: int, body: NewMessage, user: User = Depends(current_us
     budget = plan.max_context_tokens - plan.max_output_tokens
     effort = body.reasoning_effort if body.reasoning_effort in ("low", "medium", "high") else "medium"
     user_id, conv_title = user.id, c.title
+    remember_text = "" if body.regenerate else body.content
 
     async def gen():
         result = llm.StreamResult()
@@ -191,7 +192,7 @@ def send_message(conv_id: int, body: NewMessage, user: User = Depends(current_us
                         print("compression failed:", repr(e))
                     yield _event({"t": "compressed", "summary_upto": conv.summary_upto})
                 live = compress.live_messages(conv, msgs)
-                messages = build_history(live, budget, conv.summary)
+                messages = build_history(live, budget, conv.summary, memory.prompt_block(s, s.get(User, user_id)))
                 ctx = context_info(conv, msgs, budget)
             finally:
                 s.close()
@@ -228,6 +229,8 @@ def send_message(conv_id: int, body: NewMessage, user: User = Depends(current_us
                 s.close()
         if error:
             yield _event({"t": "error", "v": error})
+        elif result.content and remember_text:
+            memory.remember_in_background(user_id, remember_text)
         if messages:
             ctx["used"] += llm.estimate_tokens(result.content) + 4
         yield _event({"t": "done", "context": ctx if messages else None,

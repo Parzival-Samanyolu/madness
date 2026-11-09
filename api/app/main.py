@@ -8,7 +8,7 @@ from . import llm
 from .config import get_settings
 from .db import SessionLocal, init_engine
 from .models import User
-from .routers import account, admin, auth, billing, chat, keys, openai_api
+from .routers import account, admin, auth, billing, chat, keys, memories, openai_api
 from .security import hash_password
 
 
@@ -56,5 +56,5 @@ async def health():
     return {"ok": True, "model_online": await llm.health()}
 
 
-for r in (auth, keys, chat, account, admin, billing, openai_api):
+for r in (auth, keys, chat, account, admin, billing, openai_api, memories):
     app.include_router(r.router)
