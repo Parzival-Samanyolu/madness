@@ -81,6 +81,30 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/password")
+def change_password(body: PasswordChange, request: Request, user: User = Depends(current_user),
+                    db: Session = Depends(get_db)):
+    hit(f"password:{user.id}", get_settings().login_attempts_per_ip_per_minute, 60,
+        "Too many attempts, wait a minute")
+    if not verify_password(body.current_password, user.password_hash):
+        raise HTTPException(400, "Your current password is wrong")
+    if len(body.new_password) < 8:
+        raise HTTPException(400, "New password must be at least 8 characters")
+    user.password_hash = hash_password(body.new_password)
+    # log out every other device; keep this one
+    keep = sha256(request.cookies.get(COOKIE_NAME) or "")
+    for sess in db.scalars(select(LoginSession).where(LoginSession.user_id == user.id)):
+        if sess.token_hash != keep:
+            db.delete(sess)
+    db.commit()
+    return {"ok": True}
+
+
 @router.get("/me")
 def me(user: User = Depends(current_user)):
     return user_out(user)

@@ -44,3 +44,18 @@ def test_admin_bootstrap_and_ban(client):
 def test_non_admin_forbidden(client):
     signup(client)
     assert client.get("/api/admin/users").status_code == 403
+
+
+def test_change_password(client):
+    from conftest import signup
+    signup(client, "pw@example.com", "password123")
+    r = client.post("/api/auth/password", json={"current_password": "wrong", "new_password": "newpass123"})
+    assert r.status_code == 400
+    r = client.post("/api/auth/password", json={"current_password": "password123", "new_password": "short"})
+    assert r.status_code == 400
+    r = client.post("/api/auth/password", json={"current_password": "password123", "new_password": "newpass123"})
+    assert r.status_code == 200
+    assert client.get("/api/auth/me").status_code == 200  # this device stays logged in
+    client.cookies.clear()
+    assert client.post("/api/auth/login", json={"email": "pw@example.com", "password": "password123"}).status_code == 401
+    assert client.post("/api/auth/login", json={"email": "pw@example.com", "password": "newpass123"}).status_code == 200

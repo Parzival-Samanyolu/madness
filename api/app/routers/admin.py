@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..config import get_settings
 from .. import llm
 from ..config import PLANS
 from ..db import get_db, utcnow
@@ -31,6 +32,7 @@ async def stats(admin: User = Depends(admin_user), db: Session = Depends(get_db)
         "tokens_24h": int(db.scalar(select(func.sum(Usage.prompt_tokens + Usage.completion_tokens))
                                     .where(Usage.created_at >= since)) or 0),
         "model_online": await llm.health(),
+        "fallback_ready": bool(get_settings().fallback_llm_api_key),
     }
 
 

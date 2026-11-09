@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, fmt } from '../api'
+import { TopBar } from '../components/AppShell'
 import { useAuth } from '../auth'
 
 const SERIES = [
@@ -77,13 +78,14 @@ export default function Usage() {
   const total = useMemo(() => data.reduce((a, d) => a + d.web_tokens + d.api_tokens, 0), [data])
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10">
-      <h1 className="text-2xl font-bold">Usage</h1>
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+    <>
+    <TopBar title="Usage" />
+    <div className="flex-1 overflow-y-auto"><div className="mx-auto max-w-4xl px-4 pt-4 pb-10">
+      <div className="grid gap-4 sm:grid-cols-3">
         <div className="card p-5 sm:col-span-2">
           <div className="text-sm text-ink-2">Tokens used today</div>
           <div className="mt-1 text-3xl font-bold">{fmt(used)} <span className="text-base font-normal text-ink-3">/ {fmt(limit)}</span></div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#2c2c2a]" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-raised" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
             <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
           </div>
           <div className="mt-2 text-xs text-ink-3">{user?.plan.label} plan · resets 00:00 UTC</div>
@@ -113,6 +115,7 @@ export default function Usage() {
           </div>
         ) : <UsageChart data={data} />)}
       </div>
-    </div>
+    </div></div>
+    </>
   )
 }

@@ -32,12 +32,19 @@ PLANS: dict[str, Plan] = {
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", protected_namespaces=("settings_",))
 
-    app_name: str = "Madness"
+    app_name: str = "Synapse"
+    company_name: str = "Samanyolu AI"
+    public_model: str = "synapse-2"  # the name users and API clients see
     database_url: str = "sqlite:///./.cache/dev.db"
     redis_url: str = ""  # empty = in-memory limiter (dev only)
     llm_url: str = "http://localhost:9000"
     llm_api_key: str = ""  # shared secret with llama.cpp on the GPU box
-    model_name: str = "gpt-oss-20b"
+    model_name: str = "gpt-oss-20b"  # what the GPU box actually runs (never shown to users)
+    # Backup while the GPU box is offline: OpenRouter (or any OpenAI-style server).
+    # Only used when FALLBACK_LLM_API_KEY is set. The first model is tried first; the rest are backups.
+    fallback_llm_url: str = "https://openrouter.ai/api"
+    fallback_llm_api_key: str = ""
+    fallback_models: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free,cohere/north-mini-code:free"
 
     secret_key: str = "dev-insecure-change-me"
     cookie_secure: bool = False

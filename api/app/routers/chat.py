@@ -21,14 +21,24 @@ router = APIRouter(prefix="/api/conversations", tags=["chat"])
 def system_prompt() -> str:
     s = get_settings()
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    return (f"You are {s.app_name}, a helpful AI assistant that is excellent at both conversation "
-            f"and programming. Use Markdown, and fenced code blocks with a language tag for code. "
+    return (f"You are {s.app_name} ({s.public_model}), an AI assistant made by {s.company_name}. "
+            f"If asked who you are, who made you or what model you are, say you are {s.app_name}, "
+            f"made by {s.company_name}. "
+            "Be friendly, warm and clear: explain things simply, get to the point, and use examples when they help. "
+            "You are excellent at both conversation and programming. "
+            "Always reply in the same language the user writes in. "
+            "Use Markdown, and fenced code blocks with a language tag for code. "
             f"Current date: {today}.")
 
 
 class NewMessage(BaseModel):
-    content: str = Field(min_length=1, max_length=100_000)
+    # empty content is only allowed with regenerate=True
+    content: str = Field(default="", max_length=100_000)
     reasoning_effort: str = "medium"
+    # edit: replace this user message (and everything after it) with `content`
+    edit_message_id: int | None = None
+    # regenerate: drop the last answer and ask the model again
+    regenerate: bool = False
 
 
 class Rename(BaseModel):
@@ -122,13 +132,35 @@ def _event(obj: dict) -> bytes:
 def send_message(conv_id: int, body: NewMessage, user: User = Depends(current_user),
                  db: Session = Depends(get_db)):
     c = _own(db, user, conv_id)
+    if not body.regenerate and not body.content.strip():
+        raise HTTPException(422, "Message is empty")
+    msgs = db.scalars(select(Message).where(Message.conversation_id == c.id).order_by(Message.id)).all()
+    cut_from = None  # delete messages with id >= cut_from
+    if body.edit_message_id is not None:
+        target = next((m for m in msgs if m.id == body.edit_message_id and m.role == "user"), None)
+        if not target:
+            raise HTTPException(404, "Message not found")
+        cut_from = target.id
+    elif body.regenerate:
+        last_user = next((m for m in reversed(msgs) if m.role == "user"), None)
+        if not last_user:
+            raise HTTPException(400, "Nothing to regenerate")
+        cut_from = last_user.id + 1
+
     plan = limits.plan_for(user.plan)
     limits.check_request(user.id, plan)
     slot = limits.Slot(user.id, plan)
     slot.acquire()
 
-    db.add(Message(conversation_id=c.id, role="user", content=body.content))
-    if c.title == "New chat":
+    if cut_from is not None:
+        for m in msgs:
+            if m.id >= cut_from:
+                db.delete(m)
+        if c.summary_upto >= cut_from:  # the summary covered deleted messages: start over
+            c.summary, c.summary_upto = "", 0
+    if not body.regenerate:
+        db.add(Message(conversation_id=c.id, role="user", content=body.content))
+    if not body.regenerate and c.title == "New chat":
         c.title = body.content.strip().splitlines()[0][:60] or "New chat"
     c.updated_at = utcnow()
     db.commit()
@@ -175,7 +207,8 @@ def send_message(conv_id: int, body: NewMessage, user: User = Depends(current_us
                     yield _event({"t": "c", "v": result.content[last_c:]})
                     last_c = len(result.content)
         except llm.LLMError as e:
-            error = "The model returned an error. Please try again."
+            error = ("Synapse is very busy right now. Please try again in a minute." if e.status == 429
+                     else "The model returned an error. Please try again.")
             print("LLM error:", e)
         except Exception as e:  # network down, GPU box offline, ...
             error = "The AI server is offline right now. Please try again in a minute."

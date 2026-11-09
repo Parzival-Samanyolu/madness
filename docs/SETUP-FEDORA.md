@@ -63,7 +63,7 @@ without anyone logged in, but auto-login keeps the desktop ready.
 On the VPS, `sudo madness pair` shows a line like:
 
 ```bash
-curl -fsSL https://madness.193-122-49-121.sslip.io/_pair/abcd2345 | sudo bash
+curl -fsSL https://synapse.193-122-49-121.sslip.io/_pair/abcd2345 | sudo bash
 ```
 
 Type that **exact line** in Konsole on the GPU box and press Enter. It will:

@@ -17,7 +17,7 @@ export const useAuth = () => useContext(AuthCtx)
 export function RequireAuth({ children, admin = false }) {
   const { user } = useAuth()
   const loc = useLocation()
-  if (user === undefined) return <div className="p-10 text-ink-3">Loading…</div>
+  if (user === undefined) return <div className="flex h-full items-center justify-center text-ink-3">Loading…</div>
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname)}`} replace />
   if (admin && !user.is_admin) return <Navigate to="/chat" replace />
   return children

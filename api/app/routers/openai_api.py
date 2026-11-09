@@ -22,9 +22,16 @@ def oai_error(status: int, message: str, type_: str = "server_error"):
 
 @router.get("/models")
 def models(auth: tuple[User, ApiKey] = Depends(api_key_user)):
-    name = get_settings().model_name
+    s = get_settings()
     return {"object": "list", "data": [
-        {"id": name, "object": "model", "created": 1754352000, "owned_by": get_settings().app_name.lower()}]}
+        {"id": s.public_model, "object": "model", "created": 1762646400,
+         "owned_by": s.company_name.lower().replace(" ", "-")}]}
+
+
+def identity_message() -> dict:
+    s = get_settings()
+    return {"role": "system", "content": f"You are {s.app_name} ({s.public_model}), a model made by "
+                                         f"{s.company_name}. If asked who made you, say {s.company_name}."}
 
 
 @router.post("/chat/completions")
@@ -47,7 +54,7 @@ async def chat_completions(request: Request, auth: tuple[User, ApiKey] = Depends
         slot.release()
         return oai_error(400, f"Prompt too long: the {plan.label} plan allows about "
                               f"{plan.max_context_tokens:,} tokens of context", "invalid_request_error")
-    req = llm.prepare_body(body, plan.max_output_tokens)
+    req = llm.prepare_body({**body, "messages": [identity_message(), *body["messages"]]}, plan.max_output_tokens)
 
     if not req.get("stream"):
         try:
@@ -63,7 +70,7 @@ async def chat_completions(request: Request, auth: tuple[User, ApiKey] = Depends
         ct = u.get("completion_tokens") or llm.estimate_tokens(
             "".join((c.get("message") or {}).get("content") or "" for c in data.get("choices", [])))
         record(db, user, "api", pt, ct, key)
-        data["model"] = get_settings().model_name
+        data["model"] = get_settings().public_model
         return data
 
     user_id, key_id = user.id, key.id
@@ -72,7 +79,7 @@ async def chat_completions(request: Request, auth: tuple[User, ApiKey] = Depends
         result = llm.StreamResult()
         try:
             async for line in llm.stream_chat(req, result):
-                yield line
+                yield llm.rename_model(line, get_settings().public_model)
         except Exception as e:
             err = {"error": {"message": "Model server error" if isinstance(e, llm.LLMError)
                              else "Model server is offline", "type": "server_error"}}
