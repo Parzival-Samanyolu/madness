@@ -13,7 +13,7 @@ A self-hosted AI SaaS that the owner (Parzival) is building:
 | What | Where |
 |---|---|
 | Code | https://github.com/Parzival-Samanyolu/madness (public, branch `main`). Local copy: this folder |
-| Live site | https://madness.193-122-49-121.sslip.io (admin page `/admin`, API `/v1`, docs `/docs`) |
+| Live site | https://samanyoluai.duckdns.org (admin page `/admin`, API `/v1`, docs `/docs`). DuckDNS name made by the owner on duckdns.org (static IP, no updater needed) |
 | VPS | `ssh oracle-amd1` (Ubuntu 22.04, 1 GB RAM + 5 GB swap, passwordless sudo). Install dir `/opt/madness`, secrets in `/opt/madness/.env` (root only) |
 | Admin login | `muradhumbatov@hotmail.com`. The password is `ADMIN_PASSWORD` in `/opt/madness/.env` on the VPS. Never write it into the repo |
 | GPU box | Fedora **KDE** desktop at home. **No SSH access**: the owner types commands at its keyboard (Konsole) |
@@ -35,14 +35,12 @@ GPU box: llama.cpp server-cuda on 127.0.0.1:8080; madness-tunnel.service runs ss
 - Plans and limits live in `api/app/config.py` (`PLANS`). The free plan has 32k context and 200k tokens/day. Pro has 120k context and is assigned manually on the admin page (Stripe is a stub).
 - Website chats get context compression at 80% of the plan's context (`api/app/compress.py`).
 
-## Status (2026-11-07)
+## Status (2026-11-09)
 - [x] Code complete. 19 API tests pass, and the website was checked in a headless browser.
 - [x] VPS installed on oracle-amd1 and verified live (HTTPS, login, API returns 503 "model offline" as expected).
 - [ ] **GPU box: not set up yet.** The owner will install Fedora KDE by following `docs/SETUP-FEDORA.md`.
   - On 2026-11-09 the owner said it will be "in a month or so" (around mid-December 2026). Open a fresh pairing window then.
-- [ ] Pairing: a 24-hour pairing window is open on amd1 until **2026-11-08 14:57 UTC**. The command is in the Apple Note.
-  - Show it again: `ssh oracle-amd1 sudo madness pair-command`.
-  - Open a new window: `ssh oracle-amd1 sudo madness pair 24`. Then update the Apple Note with the new command.
+- [ ] Pairing: the old window expired. When the owner is ready, run `ssh oracle-amd1 sudo madness pair 24` and put the new command in the Apple Note.
 - [ ] After the GPU box connects:
   - Run `ssh oracle-amd1 madness status` (expect "connected").
   - Run `ssh oracle-amd1 madness bench` and report tok/s.
@@ -54,12 +52,10 @@ GPU box: llama.cpp server-cuda on 127.0.0.1:8080; madness-tunnel.service runs ss
 - [x] **OpenRouter fallback is live.** `FALLBACK_LLM_API_KEY` is in `/opt/madness/.env`; the key has a $0 limit, so only free models work.
   - Used automatically while the GPU box is offline. Models are in `FALLBACK_MODELS` (default: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free, then cohere/north-mini-code:free).
   - The owner said: no Gemma ("gemmas dont work"), small models only (max 200B).
-- [ ] **New address: the owner wants DuckDNS** (not sslip). Waiting for them to create a subdomain at duckdns.org pointing to 193.122.49.121.
-  - Then run `sudo madness domain <name>.duckdns.org`.
-  - After that: turn the old madness.193-122-49-121.sslip.io off (it's dropped from Caddy automatically by `madness domain`), update the Apple Note, and open a new pairing window when the GPU box is ready.
+- [x] **Address switched to https://samanyoluai.duckdns.org on 2026-11-09.** The old madness.…sslip.io address is off. The Apple Note is updated. A live chat test passed.
   - Backups from before the deploy are at /opt/madness/.env.bak-20261109 and /opt/madness/deploy/madness.caddy.bak-20261109.
 - [ ] Open brainstorm: "what to build next". The first question was asked and not answered yet. Ideas raised so far:
-  - A change-password page (doesn't exist yet).
+  - ~~A change-password page~~ (done: Settings → Account).
   - Stripe billing.
 
 ## Next steps when the owner comes back
