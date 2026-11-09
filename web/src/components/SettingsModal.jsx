@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, fmt } from '../api'
 import { useAuth } from '../auth'
 import { useTheme } from '../theme'
 import { useShell } from './AppShell'
 import { Alert, Confirm, Modal } from './ui'
-import { DatabaseIcon, GearIcon, MoonIcon, SunIcon, UserIcon, XIcon } from './Icons'
+import { DatabaseIcon, GearIcon, MoonIcon, SparkIcon, SunIcon, TrashIcon, UserIcon, XIcon } from './Icons'
 
-const TABS = [['general', 'General', GearIcon], ['account', 'Account', UserIcon], ['data', 'Data controls', DatabaseIcon]]
+const TABS = [['general', 'General', GearIcon], ['memory', 'Memory', SparkIcon], ['account', 'Account', UserIcon], ['data', 'Data controls', DatabaseIcon]]
 
 function Row({ label, hint, children }) {
   return (
@@ -60,6 +60,58 @@ function ChangePassword() {
   )
 }
 
+function Switch({ on, onChange, label }) {
+  return (
+    <button role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)}
+            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${on ? 'bg-accent' : 'bg-raised'}`}>
+      <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : ''}`} />
+    </button>
+  )
+}
+
+function MemoryTab() {
+  const [data, setData] = useState(null)
+  const [text, setText] = useState('')
+  const [error, setError] = useState('')
+  const [ask, setAsk] = useState(false)
+  const load = () => api('/api/memories').then(setData).catch((e) => setError(e.message))
+  useEffect(() => { load() }, [])
+  const run = async (fn) => { setError(''); try { await fn(); await load() } catch (e) { setError(e.message) } }
+  if (!data) return <p className="py-4 text-sm text-ink-3">{error || 'Loading…'}</p>
+  return (
+    <>
+      <Row label="Remember things about me" hint="Synapse saves useful facts you share, like your name, work or projects, and uses them in every chat. It never saves passwords.">
+        <Switch on={data.enabled} label="Memory" onChange={(v) => run(() => api('/api/memories/settings', { method: 'PUT', body: { enabled: v } }))} />
+      </Row>
+      <form className="flex gap-2 py-3.5" onSubmit={(e) => { e.preventDefault(); if (text.trim()) run(async () => { await api('/api/memories', { method: 'POST', body: { content: text.trim() } }); setText('') }) }}>
+        <input className="input py-2" maxLength={500} placeholder="Add something to remember, e.g. I prefer short answers" aria-label="New memory"
+               value={text} onChange={(e) => setText(e.target.value)} />
+        <button className="btn btn-primary shrink-0" disabled={!text.trim()}>Add</button>
+      </form>
+      {error && <Alert>{error}</Alert>}
+      <div className="flex items-center justify-between pt-1 pb-2">
+        <div className="text-sm">Saved memories <span className="text-ink-3">({data.memories.length})</span></div>
+        {data.memories.length > 0 && <button className="text-sm text-danger hover:underline" onClick={() => setAsk(true)}>Delete all</button>}
+      </div>
+      {data.memories.length === 0
+        ? <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-ink-3">Nothing saved yet. Tell Synapse about yourself in a chat, or add something above.</p>
+        : (
+          <ul className="max-h-64 divide-y divide-line overflow-y-auto rounded-xl border border-line">
+            {data.memories.map((m) => (
+              <li key={m.id} className="group flex items-start gap-3 px-3.5 py-2.5 text-sm">
+                <span className="flex-1">{m.content}</span>
+                <button className="icon-btn -my-1 p-1 opacity-60 group-hover:opacity-100" aria-label={`Forget: ${m.content}`} title="Forget"
+                        onClick={() => run(() => api(`/api/memories/${m.id}`, { method: 'DELETE' }))}><TrashIcon size={15} /></button>
+              </li>
+            ))}
+          </ul>
+        )}
+      <Confirm open={ask} onClose={() => setAsk(false)} title="Delete all memories?" action="Delete all"
+               body="Synapse will forget everything it saved about you. Your chats are not deleted." onConfirm={() => run(() => api('/api/memories', { method: 'DELETE' }))} />
+    </>
+  )
+}
+
 function Account({ onClose }) {
   const { user, logout } = useAuth()
   const nav = useNavigate()
@@ -98,7 +150,7 @@ function Data({ onClose }) {
 
 export default function SettingsModal({ open, onClose }) {
   const [tab, setTab] = useState('general')
-  const Body = { general: General, account: Account, data: Data }[tab]
+  const Body = { general: General, memory: MemoryTab, account: Account, data: Data }[tab]
   return (
     <Modal open={open} onClose={onClose} className="max-w-2xl">
       <div className="flex min-h-[26rem] flex-col sm:flex-row">
