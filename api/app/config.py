@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     # Only used when FALLBACK_LLM_API_KEY is set. The first model is tried first; the rest are backups.
     fallback_llm_url: str = "https://openrouter.ai/api"
     fallback_llm_api_key: str = ""
-    fallback_models: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free,cohere/north-mini-code:free"
+    fallback_models: str = "nvidia/nemotron-3.5-super-vl:free,recursive/flint-v1.0:free"
 
     secret_key: str = "dev-insecure-change-me"
     cookie_secure: bool = False

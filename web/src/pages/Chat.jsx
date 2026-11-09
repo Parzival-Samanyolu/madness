@@ -144,7 +144,9 @@ function Composer({ value, setValue, onSend, onStop, busy, autoFocus, ctx }) {
         <textarea ref={ref} rows={1} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onKey} autoFocus={autoFocus}
                   placeholder="Ask anything" aria-label="Message Synapse"
                   className="max-h-[220px] min-h-[2.5rem] flex-1 resize-none bg-transparent py-2 leading-6 outline-none placeholder:text-ink-3" />
-        {busy
+        {busy && !onStop
+          ? <button disabled aria-label="Sending" className="flex h-9 w-9 shrink-0 animate-pulse items-center justify-center rounded-full bg-ink text-surface opacity-50"><ArrowUpIcon size={18} /></button>
+          : busy
           ? <button onClick={onStop} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink text-surface" aria-label="Stop answering"><StopIcon size={16} /></button>
           : <button onClick={() => onSend(value)} disabled={!value.trim()} aria-label="Send message"
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink text-surface transition-opacity disabled:opacity-30"><ArrowUpIcon size={18} /></button>}
@@ -175,6 +177,8 @@ export default function Chat() {
   const scrollRef = useRef(null)
   const stickRef = useRef(true) // keep scrolled to the bottom unless the user scrolls up
   const pendingRef = useRef(null) // message to send right after creating a conversation
+  const startingRef = useRef(false) // a new conversation is being created
+  const [starting, setStarting] = useState(false)
 
   const setEffort = (e) => { setEffortState(e); localStorage.setItem('synapse-effort', e) }
   const loadConv = (cid) => api(`/api/conversations/${cid}`)
@@ -198,15 +202,18 @@ export default function Chat() {
 
   // body: { content } | { content, edit_message_id } | { regenerate: true }
   async function run(body, targetId = convId) {
-    if (busy) return
+    if (busy || startingRef.current) return
     if (!body.regenerate && !body.content?.trim()) return
     if (!targetId) {
+      // block extra Enter presses / clicks while the new chat is being created
+      startingRef.current = true; setStarting(true)
       try {
         const c = await api('/api/conversations', { method: 'POST' })
         pendingRef.current = body.content
         setConvs((cs) => [c, ...cs]); setInput('')
+        startingRef.current = false
         nav(`/chat/${c.id}`)
-      } catch (e) { setError(e.message) }
+      } catch (e) { setError(e.message) } finally { startingRef.current = false; setStarting(false) }
       return
     }
     setError(''); setBusy(true); stickRef.current = true
@@ -268,7 +275,7 @@ export default function Chat() {
             <h1 className="mb-8 text-center text-[1.75rem] font-medium tracking-tight sm:text-3xl">
               {firstName ? <>What's on your mind, {firstName}?</> : 'What can I help with?'}
             </h1>
-            <Composer value={input} setValue={setInput} onSend={(t) => run({ content: t })} busy={busy} autoFocus ctx={null} />
+            <Composer value={input} setValue={setInput} onSend={(t) => run({ content: t })} busy={busy || starting} autoFocus ctx={null} />
             {error && <div className="mt-4"><Alert>{error}</Alert></div>}
             <div className="mt-6 grid gap-2 sm:grid-cols-2">
               {SUGGESTIONS.map(([verb, rest]) => (
