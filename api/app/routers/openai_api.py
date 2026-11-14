@@ -20,12 +20,48 @@ def oai_error(status: int, message: str, type_: str = "server_error"):
     return JSONResponse({"error": {"message": message, "type": type_}}, status_code=status)
 
 
+SUPPORTED_PARAMETERS = ["tools", "tool_choice", "reasoning", "reasoning_effort", "max_tokens", "temperature",
+                        "top_p", "stop", "stream"]
+
+
 @router.get("/models")
 def models(auth: tuple[User, ApiKey] = Depends(api_key_user)):
+    """The model, with the limits of the key owner's plan (OpenRouter-style fields)."""
     s = get_settings()
-    return {"object": "list", "data": [
-        {"id": s.public_model, "object": "model", "created": 1762646400,
-         "owned_by": s.company_name.lower().replace(" ", "-")}]}
+    plan = limits.plan_for(auth[0].plan)
+    return {"object": "list", "data": [{
+        "id": s.public_model, "object": "model", "created": 1762646400,
+        "owned_by": s.company_name.lower().replace(" ", "-"),
+        "name": f"{s.app_name} {s.public_model.rsplit('-', 1)[-1]}",
+        "context_length": plan.max_context_tokens,
+        "max_output_tokens": plan.max_output_tokens,
+        "max_concurrent": plan.max_concurrent,
+        "pricing": {"prompt": "0", "completion": "0"},
+        "supported_parameters": SUPPORTED_PARAMETERS,
+        "reasoning_efforts": ["low", "medium", "high"],
+        "architecture": {"input_modalities": ["text"], "output_modalities": ["text"]},
+    }]}
+
+
+@router.get("/key")
+def key_info(auth: tuple[User, ApiKey] = Depends(api_key_user)):
+    """The key's plan, limits and today's token use, so apps can show them without a website login."""
+    user, key = auth
+    plan = limits.plan_for(user.plan)
+    reset = int(time.time()) + limits.seconds_until_reset()
+    return {"data": {
+        "label": key.name,
+        "plan": plan.name,
+        "plan_label": plan.label,
+        "limits": {
+            "requests_per_minute": plan.requests_per_minute,
+            "tokens_per_day": plan.tokens_per_day,
+            "max_output_tokens": plan.max_output_tokens,
+            "max_concurrent": plan.max_concurrent,
+            "max_context_tokens": plan.max_context_tokens,
+        },
+        "usage": {"tokens_today": limits.tokens_used_today(user.id), "resets_at": reset},
+    }}
 
 
 def identity_message() -> dict:
