@@ -51,6 +51,14 @@ const res = await client.chat.completions.create({
 console.log(res.choices[0].message.content);
 \`\`\`
 
+## Use Synapse in Xarı Bülbül
+
+[Xarı Bülbül](/#xari-bulbul) is our desktop coding agent, and Synapse is built in:
+
+1. [Download Xarı Bülbül](https://github.com/Parzival-Samanyolu/xari-bulbul/releases/latest) for macOS, Windows or Linux.
+2. Open **Settings → Providers → Samanyolu AI Synapse** and paste your \`syn_sk_\` key.
+3. Pick \`synapse-2\` in the model picker. Xarı Bülbül shows your plan and today's token use, and follows your plan's limits.
+
 ## Thinking modes
 
 There is one model, \`synapse-2\`. Choose how long it thinks with \`reasoning_effort\`:
@@ -65,7 +73,8 @@ There is one model, \`synapse-2\`. Choose how long it thinks with \`reasoning_ef
 
 | Method | Path | What it does |
 |---|---|---|
-| GET | \`/v1/models\` | Lists the available model (\`synapse-2\`) |
+| GET | \`/v1/models\` | Lists the model (\`synapse-2\`) with your plan's \`context_length\` and \`max_output_tokens\` |
+| GET | \`/v1/key\` | Your key's plan, limits and tokens used today (\`usage.tokens_today\`, \`usage.resets_at\`) |
 | POST | \`/v1/chat/completions\` | Chat, with \`stream: true\` for live tokens |
 
 Supported fields: \`messages\`, \`stream\`, \`max_tokens\`, \`temperature\`, \`top_p\`, \`stop\`, \`tools\`,
@@ -75,7 +84,7 @@ arrives in \`delta.reasoning_content\`.
 ## Limits
 
 Every account has per-minute, per-day and context limits based on its plan (see [pricing](/pricing)).
-When you hit one, you get HTTP **429** with a message saying which limit. Prompts longer than your plan's
+When you hit one, you get HTTP **429** with a message saying which limit and a \`Retry-After\` header (seconds). Prompts longer than your plan's
 context get HTTP **400**.
 
 ## Errors

@@ -42,6 +42,10 @@ export default function Keys() {
             <code className="flex-1 overflow-x-auto rounded-lg bg-surface px-3 py-2 text-sm">{fresh}</code>
             <button className="btn btn-ghost" onClick={() => navigator.clipboard.writeText(fresh)}>Copy</button>
           </div>
+          <p className="mt-3 text-sm text-ink-2">
+            Use it in your own code, or in <a href="/#xari-bulbul" className="text-accent underline">Xarı Bülbül</a>, our desktop coding agent:
+            paste it in Settings → Providers → Samanyolu AI Synapse.
+          </p>
           <button className="mt-2 text-xs text-ink-3 underline" onClick={() => setFresh(null)}>I've saved it</button>
         </div>
       )}
