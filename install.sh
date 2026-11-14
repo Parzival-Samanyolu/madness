@@ -362,12 +362,12 @@ gpu_container_runtime() {
 gpu_start_model() {
   step "Starting the model (first start downloads ~22 GB of Qwen3.6-35B-A3B)"
   mkdir -p "$DIR/models"
-  [[ -n $(env_get LLM_CTX) ]] || env_set LLM_CTX 524288
+  [[ -n $(env_get LLM_CTX) ]] || env_set LLM_CTX 262144
   [[ -n $(env_get LLM_PARALLEL) ]] || env_set LLM_PARALLEL 4
-  # Goal: 4 chats that can each reach 131072 tokens (pool 524288, ~5 GB). The model (22 GB) is bigger
+  # Goal: 4 chats that can each reach 65536 tokens (pool 262144, ~2.5 GB; plans allow 64k). The model (22 GB) is bigger
   # than the 16 GB card, so the experts of most of its 40 layers live in system RAM (--n-cpu-moe).
   # Fewer layers in RAM is faster, so try those first; only then fall back to smaller pools.
-  local tries=("524288 24" "524288 28" "524288 32" "524288 36" "524288 40" "262144 28" "262144 34" "131072 30" "131072 40" "65536 40")
+  local tries=("262144 20" "262144 24" "262144 28" "262144 32" "262144 36" "262144 40" "131072 32" "131072 40" "65536 40")
   for t in "${tries[@]}"; do
     local ctx=${t% *} moe=${t#* }
     (( ctx > $(env_get LLM_CTX) )) && continue

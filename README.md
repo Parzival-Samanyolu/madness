@@ -68,7 +68,7 @@ To change a user's plan, use the Admin page. Stripe billing has a stub ready in 
 ## GPU capacity (RTX 5060 Ti, 16 GB)
 
 - The model file is about 22 GB, more than the card's 16 GB, so the experts of most layers live in system RAM (32 GB) and the rest stays on the GPU. Only ~3B parameters work per token, so it stays usable (expect roughly 25-35 tok/s per chat).
-- The rest of the GPU holds a **shared context pool** (8-bit KV cache, about 5 GB for 512k tokens), so 4 chats can each reach 128k.
+- The rest of the GPU holds a **shared context pool** (8-bit KV cache, about 2.5 GB for 256k tokens), so 4 chats can each reach the plans' 64k.
 - **4 chats generate at the same time** by default; more requests queue for a few seconds.
 - Modes: `low` answers without thinking, `medium` thinks up to 4096 tokens, `high` thinks without a cap.
 - Run `madness bench` to measure, then raise `LLM_PARALLEL` while "tok/s per user" stays above about 15.

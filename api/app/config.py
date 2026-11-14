@@ -26,13 +26,13 @@ PLANS: dict[str, Plan] = {
         name="free", label="Neuron", price_usd=0,
         requests_per_minute=20, usd_per_week=10, price_per_million_usd=PRICE_PER_MILLION_USD,
         cache_price_per_million_usd=CACHE_PRICE_PER_MILLION_USD,
-        max_output_tokens=8192, max_concurrent=1, max_context_tokens=128_000,
+        max_output_tokens=8192, max_concurrent=1, max_context_tokens=64_000,
     ),
     "pro": Plan(
         name="pro", label="Myelin", price_usd=10,
         requests_per_minute=60, usd_per_week=50, price_per_million_usd=PRICE_PER_MILLION_USD,
         cache_price_per_million_usd=CACHE_PRICE_PER_MILLION_USD,
-        max_output_tokens=16384, max_concurrent=3, max_context_tokens=128_000,
+        max_output_tokens=16384, max_concurrent=3, max_context_tokens=64_000,
     ),
 }
 

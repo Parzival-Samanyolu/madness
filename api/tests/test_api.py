@@ -116,7 +116,7 @@ def test_modes_map_to_thinking():
 def test_prompt_too_long(client):
     signup(client)
     h = {"Authorization": f"Bearer {make_key(client)}"}
-    big = "word " * 110_000  # ~137k tokens > the plans' 128k
+    big = "word " * 110_000  # ~137k tokens > the plans' 64k
     r = client.post("/v1/chat/completions", headers=h, json={"messages": [{"role": "user", "content": big}]})
     assert r.status_code == 400 and "too long" in r.json()["error"]["message"]
     # slot was released, normal request still works
@@ -139,7 +139,7 @@ def test_models_show_plan_limits(client):
     signup(client)
     h = {"Authorization": f"Bearer {make_key(client)}"}
     m = client.get("/v1/models", headers=h).json()["data"][0]
-    assert m["context_length"] == 128_000 and m["max_output_tokens"] == 8192 and m["max_concurrent"] == 1
+    assert m["context_length"] == 64_000 and m["max_output_tokens"] == 8192 and m["max_concurrent"] == 1
     assert m["pricing"] == {"prompt": "0.000001", "completion": "0.000001", "input_cache_read": "0.0000001"}
     assert "tools" in m["supported_parameters"]
 

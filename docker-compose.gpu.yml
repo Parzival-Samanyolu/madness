@@ -26,9 +26,9 @@ services:
       - --flash-attn
       - "on"
       - --ctx-size
-      - ${LLM_CTX:-524288}      # one pool shared by all chats (--kv-unified); each chat can use up to 131072 (Qwen3.6 needs ~10 KB per token)
+      - ${LLM_CTX:-262144}      # one pool shared by all chats (--kv-unified); each chat can use up to 65536 (Qwen3.6 needs ~10 KB per token)
       - --parallel
-      - ${LLM_PARALLEL:-4}      # chats generating at the same time; 4 x 131072 = 524288 so each can reach full size
+      - ${LLM_PARALLEL:-4}      # chats generating at the same time; 4 x 65536 = 262144 so each can reach the plans' 64k
       - --n-cpu-moe
       - ${LLM_CPU_MOE:-28}      # layers (of 40) whose experts stay in system RAM: the 22 GB model doesn't fit in 16 GB
       - --kv-unified
