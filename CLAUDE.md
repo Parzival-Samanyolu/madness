@@ -70,6 +70,11 @@ GPU box: llama.cpp server-cuda on 127.0.0.1:8080; madness-tunnel.service runs ss
   - **Training data**: `users.training_opt_in` is off by default. Users turn it on with the sign-up checkbox or Settings → Data controls.
     The admin downloads it at System → Training data as JSONL in `{"messages":[...]}` format, with optional `thinking`. The file has no emails.
   - Edit-message and regenerate were already built before this.
+- [x] **2026-11-14 (deployed + live-tested): Xarı Bülbül integration.** Xarı Bülbül is the owner's desktop coding agent (`~/Harness`), same company.
+  - `/v1/models` reports the key's plan (`context_length`, `max_output_tokens`, `max_concurrent`, zero pricing, `supported_parameters`).
+  - `GET /v1/key` (API-key auth) returns plan, limits and `usage.tokens_today` / `resets_at`. Xarı Bülbül shows it in Settings.
+  - 429s carry `Retry-After`.
+  - Website: full Xarı Bülbül section on the home page (`#xari-bulbul`, screenshot at `web/public/xari-bulbul.png`), nav + footer links, a note on the Keys page, a docs section.
 - [ ] Ideas not built yet: Stripe billing, file upload, Google login, password reset by email.
 
 ## Next steps when the owner comes back
