@@ -19,3 +19,6 @@ data/
 models/
 backups/
 deploy/site.caddy
+
+# notes for Claude: local only (they hold server details)
+CLAUDE.md
