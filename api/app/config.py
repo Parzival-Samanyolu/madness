@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     redis_url: str = ""  # empty = in-memory limiter (dev only)
     llm_url: str = "http://localhost:9000"
     llm_api_key: str = ""  # shared secret with llama.cpp on the GPU box
-    model_name: str = "gpt-oss-20b"  # what the GPU box actually runs (never shown to users)
+    model_name: str = "qwen3.6-35b-a3b"  # what the GPU box actually runs (never shown to users)
     # Backup while the GPU box is offline: OpenRouter (or any OpenAI-style server).
     # Only used when FALLBACK_LLM_API_KEY is set. The first model is tried first; the rest are backups.
     fallback_llm_url: str = "https://openrouter.ai/api"

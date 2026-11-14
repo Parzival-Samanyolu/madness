@@ -72,7 +72,7 @@ Type that **exact line** in Konsole on the GPU box and press Enter. It will:
 2. Turn off sleep and suspend, so the AI stays online. KDE's "Sleep" button stops working on this PC; shutting down and restarting still work.
 3. Ask whether you want **Cockpit**, a web dashboard for this box that you can open from your Mac on the home Wi-Fi. Your choice.
 4. Install the NVIDIA driver, then ask to **reboot**. Say yes.
-5. **After the reboot it continues by itself.** It installs Docker and downloads the AI model (about 12 GB), then starts it.
+5. **After the reboot it continues by itself.** It installs Docker and downloads the AI model (about 22 GB), then starts it.
 
 To watch progress after the reboot, log in, open Konsole and run:
 ```bash
@@ -85,7 +85,7 @@ sudo madness install-log
 ```bash
 madness status
 ```
-You want to see the GPU name, about 14-15 GB of video memory in use, and `{"status":"ok"}` under **Model**.
+You want to see the GPU name, about 14-15 GB of video memory in use (the rest of the model sits in normal RAM), and `{"status":"ok"}` under **Model**.
 If the desktop runs on the 5060 Ti, a little of that memory is the desktop's; that's normal.
 Then open your website from your phone and say hi.
 

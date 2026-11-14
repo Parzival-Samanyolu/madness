@@ -16,7 +16,7 @@ services:
           devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
     command:
       - -hf
-      - ${LLM_MODEL:-ggml-org/gpt-oss-20b-GGUF}
+      - ${LLM_MODEL:-unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M}
       - --host
       - 127.0.0.1
       - --port
@@ -26,11 +26,11 @@ services:
       - --flash-attn
       - "on"
       - --ctx-size
-      - ${LLM_CTX:-524288}      # one pool shared by all chats (--kv-unified); each chat can use up to 131072
+      - ${LLM_CTX:-524288}      # one pool shared by all chats (--kv-unified); each chat can use up to 131072 (Qwen3.6 needs ~10 KB per token)
       - --parallel
       - ${LLM_PARALLEL:-4}      # chats generating at the same time; 4 x 131072 = 524288 so each can reach full size
       - --n-cpu-moe
-      - ${LLM_CPU_MOE:-0}       # layers whose experts stay in system RAM, freeing GPU memory for the pool
+      - ${LLM_CPU_MOE:-28}      # layers (of 40) whose experts stay in system RAM: the 22 GB model doesn't fit in 16 GB
       - --kv-unified
       - --cache-type-k
       - q8_0
@@ -39,4 +39,13 @@ services:
       - --jinja
       - --reasoning-format
       - deepseek
+      - --no-mmproj               # text only: skip the vision projector, keep its GPU memory for chats
+      - --temp
+      - "0.6"                     # Qwen3.6's recommended sampling for thinking + coding; requests can override
+      - --top-p
+      - "0.95"
+      - --top-k
+      - "20"
+      - --min-p
+      - "0"
       - --no-webui

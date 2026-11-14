@@ -2,7 +2,7 @@
 
 Users see **Synapse** and the model **synapse-2**. `madness` is only the internal name (CLI, folders, services).
 
-Your own AI service: a ChatGPT-style website plus an OpenAI-compatible API, running **gpt-oss-20b** on your own RTX 5060 Ti.
+Your own AI service: a ChatGPT-style website plus an OpenAI-compatible API, running **Qwen3.6-35B-A3B** on your own RTX 5060 Ti.
 
 ```
  Internet ──HTTPS──► VPS (website, API, accounts, database)
@@ -67,10 +67,12 @@ To change a user's plan, use the Admin page. Stripe billing has a stub ready in 
 
 ## GPU capacity (RTX 5060 Ti, 16 GB)
 
-- The model uses about 12 GB of memory. The rest holds a **shared 128k-token context pool** (8-bit KV cache), which any single chat can use in full.
-- **8 chats generate at the same time** by default; more requests queue for a few seconds.
+- The model file is about 22 GB, more than the card's 16 GB, so the experts of most layers live in system RAM (32 GB) and the rest stays on the GPU. Only ~3B parameters work per token, so it stays usable (expect roughly 25-35 tok/s per chat).
+- The rest of the GPU holds a **shared context pool** (8-bit KV cache, about 5 GB for 512k tokens), so 4 chats can each reach 128k.
+- **4 chats generate at the same time** by default; more requests queue for a few seconds.
+- Modes: `low` answers without thinking, `medium` thinks up to 4096 tokens, `high` thinks without a cap.
 - Run `madness bench` to measure, then raise `LLM_PARALLEL` while "tok/s per user" stays above about 15.
-- If 128k doesn't fit, the installer falls back to 96k, then 64k, on its own.
+- If the pool doesn't fit, the installer moves more experts to RAM, then tries smaller pools, on its own.
 
 ## Developing on your Mac (optional)
 

@@ -360,14 +360,14 @@ gpu_container_runtime() {
 }
 
 gpu_start_model() {
-  step "Starting the model (first start downloads ~12 GB of gpt-oss-20b)"
+  step "Starting the model (first start downloads ~22 GB of Qwen3.6-35B-A3B)"
   mkdir -p "$DIR/models"
   [[ -n $(env_get LLM_CTX) ]] || env_set LLM_CTX 524288
   [[ -n $(env_get LLM_PARALLEL) ]] || env_set LLM_PARALLEL 4
-  # Goal: 4 chats that can each reach gpt-oss's full 131072 tokens (pool 524288). The model alone
-  # nearly fills 16 GB, so experts of some layers move to system RAM (--n-cpu-moe), which is a bit
-  # slower, until the pool fits. Only then fall back to smaller pools.
-  local tries=("524288 0" "524288 6" "524288 10" "524288 14" "524288 18" "262144 10" "131072 0" "131072 8" "65536 0")
+  # Goal: 4 chats that can each reach 131072 tokens (pool 524288, ~5 GB). The model (22 GB) is bigger
+  # than the 16 GB card, so the experts of most of its 40 layers live in system RAM (--n-cpu-moe).
+  # Fewer layers in RAM is faster, so try those first; only then fall back to smaller pools.
+  local tries=("524288 24" "524288 28" "524288 32" "524288 36" "524288 40" "262144 28" "262144 34" "131072 30" "131072 40" "65536 40")
   for t in "${tries[@]}"; do
     local ctx=${t% *} moe=${t#* }
     (( ctx > $(env_get LLM_CTX) )) && continue
@@ -375,7 +375,7 @@ gpu_start_model() {
     env_set LLM_CPU_MOE "$moe"
     compose up -d --force-recreate
     echo "  Trying a context pool of $ctx tokens for $(env_get LLM_PARALLEL) chats, $moe layers' experts in RAM..."
-    local started=0 deadline=$(( $(date +%s) + 4 * 3600 ))  # slow internet: 12 GB can take a while
+    local started=0 deadline=$(( $(date +%s) + 6 * 3600 ))  # slow internet: 22 GB can take a while
     while (( $(date +%s) < deadline )); do
       local restarts; restarts=$(docker inspect -f '{{.RestartCount}}' "$(compose ps -q llm)" 2>/dev/null || echo 0)
       if (( restarts >= 3 )) && ! compose logs --tail 80 llm 2>&1 | grep -qiE "out of memory|failed to allocate|cudaMalloc failed|failed to create context"; then

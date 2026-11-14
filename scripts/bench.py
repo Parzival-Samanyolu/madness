@@ -17,7 +17,7 @@ PROMPT = "Write a detailed explanation of how a hash map works, with a Python im
 
 def one(results):
     body = json.dumps({"messages": [{"role": "user", "content": PROMPT}], "max_tokens": 400,
-                       "chat_template_kwargs": {"reasoning_effort": "low"}}).encode()
+                       "chat_template_kwargs": {"enable_thinking": False}}).encode()
     req = urllib.request.Request(f"{URL}/v1/chat/completions", data=body,
                                  headers={"Content-Type": "application/json", "Authorization": f"Bearer {KEY}"})
     t = time.time()

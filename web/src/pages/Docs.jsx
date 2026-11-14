@@ -65,9 +65,9 @@ There is one model, \`synapse-2\`. Choose how long it thinks with \`reasoning_ef
 
 | reasoning_effort | Best for |
 |---|---|
-| \`low\` | Quick answers, chat, simple tasks |
-| \`medium\` (default) | Most questions and everyday coding |
-| \`high\` | Hard problems: tricky bugs, math, planning |
+| \`low\` | Answers right away, without thinking: quick answers, chat, simple tasks |
+| \`medium\` (default) | Thinks briefly first (up to about 4,000 tokens): most questions and everyday coding |
+| \`high\` | Thinks as long as it needs: hard problems, tricky bugs, math, planning |
 
 ## Endpoints
 
@@ -78,7 +78,7 @@ There is one model, \`synapse-2\`. Choose how long it thinks with \`reasoning_ef
 | POST | \`/v1/chat/completions\` | Chat, with \`stream: true\` for live tokens |
 
 Supported fields: \`messages\`, \`stream\`, \`max_tokens\`, \`temperature\`, \`top_p\`, \`stop\`, \`tools\`,
-\`response_format\`, \`reasoning_effort\`. The model thinks before answering; streamed reasoning
+\`response_format\`, \`reasoning_effort\`. In \`medium\` and \`high\` the model thinks before answering; streamed reasoning
 arrives in \`delta.reasoning_content\`.
 
 ## Limits

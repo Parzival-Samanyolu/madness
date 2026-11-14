@@ -1,4 +1,4 @@
-"""Fake OpenAI-compatible model server that behaves like llama.cpp + gpt-oss.
+"""Fake OpenAI-compatible model server that behaves like llama.cpp + a thinking model (Qwen3.6).
 Used for local development on a machine without a GPU, and by the test-suite.
 
 Run: python mock-llm/mock_llm.py   (listens on :9000)
