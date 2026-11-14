@@ -10,6 +10,15 @@ const features = [
   ['Create', 'Draft emails, plans, stories and ideas. Pick Low, Medium or High thinking for quick replies or deep work.'],
 ]
 
+export const XB_DOWNLOAD = 'https://github.com/Parzival-Samanyolu/xari-bulbul/releases/latest'
+export const XB_REPO = 'https://github.com/Parzival-Samanyolu/xari-bulbul'
+
+const xbPoints = [
+  ['Works in your project', 'Reads, searches, edits and runs code in a folder you open, and asks before anything risky.'],
+  ['synapse-2 built in', 'Pick Samanyolu AI Synapse in Settings, paste your syn_sk_ key, and it uses your Synapse plan.'],
+  ['Any model, any desktop', 'Also works with OpenRouter, Ollama, Gemini, Claude, GPT and more. For macOS, Windows and Linux.'],
+]
+
 const apiSnippet = `from openai import OpenAI
 
 client = OpenAI(
@@ -94,6 +103,34 @@ export default function Landing() {
             <Link to="/docs" className="mt-7 inline-flex items-center gap-2 font-medium hover:gap-3 transition-all">Read the API docs <ArrowRight size={17} /></Link>
           </div>
           <pre className="overflow-x-auto rounded-2xl bg-[#141413] p-6 text-[0.85rem] leading-relaxed text-[#e8e6dc]"><code>{apiSnippet}</code></pre>
+        </div>
+      </section>
+
+      <section id="xari-bulbul" className="scroll-mt-20 border-b border-line">
+        <div className="mx-auto grid max-w-6xl items-center gap-14 px-5 py-24 lg:grid-cols-[1fr_1.15fr]">
+          <div>
+            <p className="text-sm font-medium text-accent">Also from Samanyolu AI</p>
+            <h2 className="mt-3 font-serif text-4xl leading-tight tracking-[-0.01em] sm:text-5xl">Xarı Bülbül, a coding agent for your desktop</h2>
+            <p className="mt-5 max-w-md text-lg leading-relaxed text-ink-2">
+              Give it a task and it does the work in your project: it reads the code, makes the changes, runs the tests and tells you what it did.
+            </p>
+            <div className="mt-10 space-y-6">
+              {xbPoints.map(([t, d]) => (
+                <div key={t} className="border-t border-ink/80 pt-4">
+                  <h3 className="font-serif text-xl">{t}</h3>
+                  <p className="mt-2 leading-relaxed text-ink-2">{d}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-10 flex flex-wrap items-center gap-3">
+              <a href={XB_DOWNLOAD} className="btn btn-primary px-6 py-3 text-base">Download Xarı Bülbül</a>
+              <a href={XB_REPO} className="btn btn-ghost px-6 py-3 text-base">View on GitHub</a>
+            </div>
+            <p className="mt-4 text-sm text-ink-3">Free and open source. macOS, Windows and Linux.</p>
+          </div>
+          <img src="/xari-bulbul.png" alt="The Xarı Bülbül app working on a project with synapse-2"
+               width="1600" height="1000" loading="lazy"
+               className="w-full rounded-2xl border border-line shadow-[0_30px_80px_-30px_rgb(0_0_0/0.35)]" />
         </div>
       </section>
 

@@ -15,7 +15,7 @@ export function ThemeButton() {
   )
 }
 
-const links = [['/#features', 'Product'], ['/#api', 'API'], ['/pricing', 'Pricing'], ['/docs', 'Docs']]
+const links = [['/#features', 'Product'], ['/#api', 'API'], ['/#xari-bulbul', 'Xarı Bülbül'], ['/pricing', 'Pricing'], ['/docs', 'Docs']]
 
 // Pages for visitors (home, pricing, docs): warm "editorial" look.
 export default function Layout() {
@@ -58,7 +58,7 @@ export default function Layout() {
       </header>
       <main className="flex-1"><Outlet /></main>
       <footer className="border-t border-line">
-        <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:grid-cols-[2fr_1fr_1fr]">
+        <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:grid-cols-[2fr_1fr_1fr_1fr]">
           <div>
             <Logo />
             <p className="mt-3 max-w-xs text-sm text-ink-2">Synapse is made by Samanyolu AI and runs on our own GPU, not a big AI cloud.</p>
@@ -72,6 +72,11 @@ export default function Layout() {
             <h3 className="mb-3 font-medium">Developers</h3>
             <Link to="/docs" className="block text-ink-2 hover:text-ink">API docs</Link>
             <Link to="/keys" className="block text-ink-2 hover:text-ink">API keys</Link>
+          </div>
+          <div className="space-y-2 text-sm">
+            <h3 className="mb-3 font-medium">Also from Samanyolu AI</h3>
+            <a href="/#xari-bulbul" className="block text-ink-2 hover:text-ink">Xarı Bülbül</a>
+            <a href="https://github.com/Parzival-Samanyolu/xari-bulbul/releases/latest" className="block text-ink-2 hover:text-ink">Download the desktop app</a>
           </div>
         </div>
         <div className="mx-auto max-w-6xl px-5 pb-8 text-xs text-ink-3">© {new Date().getFullYear()} Samanyolu AI</div>
