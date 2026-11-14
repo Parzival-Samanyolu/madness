@@ -26,9 +26,11 @@ services:
       - --flash-attn
       - "on"
       - --ctx-size
-      - ${LLM_CTX:-131072}      # one shared pool for all chats (gpt-oss max is 131072)
+      - ${LLM_CTX:-524288}      # one pool shared by all chats (--kv-unified); each chat can use up to 131072
       - --parallel
-      - ${LLM_PARALLEL:-8}      # chats generating at the same time
+      - ${LLM_PARALLEL:-4}      # chats generating at the same time; 4 x 131072 = 524288 so each can reach full size
+      - --n-cpu-moe
+      - ${LLM_CPU_MOE:-0}       # layers whose experts stay in system RAM, freeing GPU memory for the pool
       - --kv-unified
       - --cache-type-k
       - q8_0
