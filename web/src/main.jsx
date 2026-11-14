@@ -14,6 +14,7 @@ import Docs from './pages/Docs'
 import Admin from './pages/Admin'
 import Pricing from './pages/Pricing'
 import Shared from './pages/Shared'
+import Contact from './pages/Contact'
 
 function NotFound() {
   return (
@@ -46,6 +47,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/" element={<Landing />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/docs" element={<Docs />} />
+            <Route path="/contact" element={<Contact />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

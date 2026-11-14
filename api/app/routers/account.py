@@ -24,18 +24,21 @@ def usage(days: int = 30, user: User = Depends(current_user), db: Session = Depe
     since = (utcnow() - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
     day = func.date(Usage.created_at)
     rows = db.execute(
-        select(day, Usage.source, func.sum(Usage.prompt_tokens + Usage.completion_tokens), func.count())
+        select(day, Usage.source, func.sum(Usage.prompt_tokens + Usage.completion_tokens), func.count(),
+               func.sum(Usage.cached_tokens), func.sum(Usage.cost_usd))
         .where(Usage.user_id == user.id, Usage.created_at >= since)
         .group_by(day, Usage.source)).all()
     by_day: dict[str, dict] = {}
     for i in range(days):
         d = (since + timedelta(days=i)).strftime("%Y-%m-%d")
-        by_day[d] = {"date": d, "web_tokens": 0, "api_tokens": 0, "requests": 0}
-    for d, source, tokens, count in rows:
+        by_day[d] = {"date": d, "web_tokens": 0, "api_tokens": 0, "cached_tokens": 0, "cost_usd": 0.0, "requests": 0}
+    for d, source, tokens, count, cached, cost in rows:
         d = str(d)[:10]
         if d in by_day:
             by_day[d][f"{source}_tokens"] = int(tokens or 0)
             by_day[d]["requests"] += int(count)
+            by_day[d]["cached_tokens"] += int(cached or 0)
+            by_day[d]["cost_usd"] = round(by_day[d]["cost_usd"] + float(cost or 0), 6)
     return list(by_day.values())
 
 

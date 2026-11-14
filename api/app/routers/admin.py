@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from .. import llm
 from ..config import PLANS, get_settings
 from ..db import get_db, utcnow
-from ..limits import tokens_used_today
+from ..limits import tokens_used_today, usd_used_this_week
 from ..models import ApiKey, Conversation, LoginSession, Message, Usage, User
 from ..security import admin_user, hash_password
 
@@ -130,7 +130,8 @@ def user_detail(user_id: int, admin: User = Depends(admin_user), db: Session = D
         "id": u.id, "email": u.email, "plan": u.plan, "is_admin": u.is_admin, "is_banned": u.is_banned,
         "created_at": u.created_at, "training_opt_in": u.training_opt_in,
         "last_active": db.scalar(select(func.max(Usage.created_at)).where(Usage.user_id == u.id)),
-        "tokens_today": tokens_used_today(u.id), "tokens_per_day": plan.tokens_per_day,
+        "tokens_today": tokens_used_today(u.id),
+        "usd_this_week": round(usd_used_this_week(u.id), 4), "usd_per_week": plan.usd_per_week,
         "tokens_7d": _tokens(db, Usage.user_id == u.id, Usage.created_at >= now - timedelta(days=7)),
         "tokens_total": _tokens(db, Usage.user_id == u.id),
         "requests_total": _count(db, Usage, Usage.user_id == u.id),

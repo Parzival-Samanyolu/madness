@@ -92,12 +92,35 @@ def hit(key: str, limit: int, window: int, message: str):
 def check_request(user_id: int, plan: Plan):
     hit(f"rpm:{user_id}", plan.requests_per_minute, 60,
         f"Rate limit: {plan.requests_per_minute} requests/minute on the {plan.label} plan")
-    used = tokens_used_today(user_id)
-    if used >= plan.tokens_per_day:
+    if usd_used_this_week(user_id) >= plan.usd_per_week:
         raise HTTPException(429, {
-            "message": f"Daily token limit reached ({plan.tokens_per_day:,} on the {plan.label} plan). Resets at 00:00 UTC.",
-            "type": "rate_limit_error",
-        }, headers={"Retry-After": str(seconds_until_reset())})
+            "message": f"Weekly usage limit reached (${plan.usd_per_week:,.2f} on the {plan.label} plan). "
+                       "Resets Monday 00:00 UTC.",
+            "type": "rate_limit_error", "code": "weekly_limit",
+        }, headers={"Retry-After": str(seconds_until_week_reset())})
+
+
+def _week() -> str:
+    y, w, _ = datetime.now(timezone.utc).isocalendar()
+    return f"{y}W{w:02d}"
+
+
+def seconds_until_week_reset() -> int:
+    """Seconds until Monday 00:00 UTC, when the weekly allowance resets."""
+    now = time.time()
+    days_since_monday = datetime.now(timezone.utc).weekday()
+    return max(1, int((7 - days_since_monday) * 86400 - now % 86400))
+
+
+def usd_used_this_week(user_id: int) -> float:
+    return store().get(f"usd:{user_id}:{_week()}") / 1_000_000  # stored in micro-dollars
+
+
+def cost_usd(plan: Plan, prompt_tokens: int, completion_tokens: int, cached_tokens: int = 0) -> float:
+    """Price of one request: cached input at the cache price, the rest at the normal price."""
+    cached = max(0, min(cached_tokens, prompt_tokens))
+    fresh = prompt_tokens - cached + completion_tokens
+    return (fresh * plan.price_per_million_usd + cached * plan.cache_price_per_million_usd) / 1_000_000
 
 
 def seconds_until_reset() -> int:
@@ -110,8 +133,11 @@ def tokens_used_today(user_id: int) -> int:
     return store().get(f"tok:{user_id}:{_today()}")
 
 
-def add_tokens(user_id: int, n: int):
-    store().incrby(f"tok:{user_id}:{_today()}", n, 60 * 60 * 26)
+def add_usage(user_id: int, plan: Plan, prompt_tokens: int, completion_tokens: int, cached_tokens: int = 0):
+    """Counts tokens for today's stats and their price against the weekly allowance."""
+    store().incrby(f"tok:{user_id}:{_today()}", prompt_tokens + completion_tokens, 60 * 60 * 26)
+    micro = round(cost_usd(plan, prompt_tokens, completion_tokens, cached_tokens) * 1_000_000)
+    store().incrby(f"usd:{user_id}:{_week()}", micro, 8 * 86400)
 
 
 class Slot:

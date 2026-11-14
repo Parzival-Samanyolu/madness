@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { LogoMark } from '../components/Logo'
 import { ArrowRight, ArrowUpIcon } from '../components/Icons'
-import { PlanCards } from './Pricing'
+import { PlanCards, PricingNotes } from './Pricing'
 
 const features = [
   ['Chat', 'Ask anything and get clear, friendly answers in your own language: English, Türkçe, Azərbaycanca and many more.'],
@@ -146,8 +146,9 @@ export default function Landing() {
 
       <section id="pricing" className="mx-auto max-w-4xl scroll-mt-20 px-5 py-20">
         <h2 className="text-center font-serif text-4xl sm:text-5xl">Simple pricing</h2>
-        <p className="mt-4 mb-12 text-center text-ink-2">Start free. Limits reset every day.</p>
+        <p className="mt-4 mb-12 text-center text-ink-2">Start free with Neuron. Your allowance resets every week.</p>
         <PlanCards />
+        <PricingNotes />
       </section>
 
       <section className="px-5 pb-20">

@@ -24,6 +24,10 @@ SUPPORTED_PARAMETERS = ["tools", "tool_choice", "reasoning", "reasoning_effort",
                         "top_p", "stop", "stream"]
 
 
+def _per_token(per_million: float) -> str:
+    return f"{per_million / 1_000_000:.10f}".rstrip("0").rstrip(".")
+
+
 @router.get("/models")
 def models(auth: tuple[User, ApiKey] = Depends(api_key_user)):
     """The model, with the limits of the key owner's plan (OpenRouter-style fields)."""
@@ -36,7 +40,10 @@ def models(auth: tuple[User, ApiKey] = Depends(api_key_user)):
         "context_length": plan.max_context_tokens,
         "max_output_tokens": plan.max_output_tokens,
         "max_concurrent": plan.max_concurrent,
-        "pricing": {"prompt": "0", "completion": "0"},
+        # USD per token, measured against the plan's weekly allowance (nothing is billed per token)
+        "pricing": {"prompt": _per_token(plan.price_per_million_usd),
+                    "completion": _per_token(plan.price_per_million_usd),
+                    "input_cache_read": _per_token(plan.cache_price_per_million_usd)},
         "supported_parameters": SUPPORTED_PARAMETERS,
         "reasoning_efforts": ["low", "medium", "high"],
         "architecture": {"input_modalities": ["text"], "output_modalities": ["text"]},
@@ -48,19 +55,22 @@ def key_info(auth: tuple[User, ApiKey] = Depends(api_key_user)):
     """The key's plan, limits and today's token use, so apps can show them without a website login."""
     user, key = auth
     plan = limits.plan_for(user.plan)
-    reset = int(time.time()) + limits.seconds_until_reset()
+    reset = int(time.time()) + limits.seconds_until_week_reset()
     return {"data": {
         "label": key.name,
         "plan": plan.name,
         "plan_label": plan.label,
         "limits": {
             "requests_per_minute": plan.requests_per_minute,
-            "tokens_per_day": plan.tokens_per_day,
+            "usd_per_week": plan.usd_per_week,
+            "price_per_million_usd": plan.price_per_million_usd,
+            "cache_price_per_million_usd": plan.cache_price_per_million_usd,
             "max_output_tokens": plan.max_output_tokens,
             "max_concurrent": plan.max_concurrent,
             "max_context_tokens": plan.max_context_tokens,
         },
-        "usage": {"tokens_today": limits.tokens_used_today(user.id), "resets_at": reset},
+        "usage": {"usd_this_week": round(limits.usd_used_this_week(user.id), 4),
+                  "tokens_today": limits.tokens_used_today(user.id), "resets_at": reset},
     }}
 
 
@@ -105,17 +115,23 @@ async def chat_completions(request: Request, auth: tuple[User, ApiKey] = Depends
         pt = u.get("prompt_tokens") or llm.estimate_tokens(prompt_text)
         ct = u.get("completion_tokens") or llm.estimate_tokens(
             "".join((c.get("message") or {}).get("content") or "" for c in data.get("choices", [])))
-        record(db, user, "api", pt, ct, key)
+        record(db, user, "api", pt, ct, key, llm.cached_tokens(u, data))
         data["model"] = get_settings().public_model
+        data.pop("provider", None)
+        data["usage"] = llm.public_usage({**u, "prompt_tokens": pt, "completion_tokens": ct}, data,
+                                         lambda p, c, k: limits.cost_usd(plan, p, c, k))
         return data
 
     user_id, key_id = user.id, key.id
+
+    def price(prompt_tokens: int, completion_tokens: int, cached: int) -> float:
+        return limits.cost_usd(plan, prompt_tokens, completion_tokens, cached)
 
     async def gen():
         result = llm.StreamResult()
         try:
             async for line in llm.stream_chat(req, result):
-                yield llm.rename_model(line, get_settings().public_model)
+                yield llm.rename_model(line, get_settings().public_model, price)
         except Exception as e:
             err = {"error": {"message": "Model server error" if isinstance(e, llm.LLMError)
                              else "Model server is offline", "type": "server_error"}}

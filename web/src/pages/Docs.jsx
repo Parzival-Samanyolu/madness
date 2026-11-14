@@ -83,7 +83,10 @@ arrives in \`delta.reasoning_content\`.
 
 ## Limits
 
-Every account has per-minute, per-day and context limits based on its plan (see [pricing](/pricing)).
+Every account has a per-minute limit, a context limit and a **weekly usage allowance** based on its plan (see [pricing](/pricing)):
+Neuron (free) gets $10 of use a week, Myelin $50. Use is measured at **$1 per million tokens**, input and output alike, and
+cached input (text the model has already read, like the earlier part of a chat) counts at **$0.10 per million**. You are never
+billed per token. The allowance resets Monday 00:00 UTC. \`GET /v1/key\` shows what you've used (\`usage.usd_this_week\`).
 When you hit one, you get HTTP **429** with a message saying which limit and a \`Retry-After\` header (seconds). Prompts longer than your plan's
 context get HTTP **400**.
 

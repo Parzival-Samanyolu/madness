@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { api, fmt } from '../api'
+import { api, fmt, usd } from '../api'
 import { useAuth } from '../auth'
 import { TopBar } from '../components/AppShell'
 import { Alert, Confirm, Modal } from '../components/ui'
 import { DownloadIcon, RetryIcon, SearchIcon } from '../components/Icons'
 import { SERIES, UsageChart } from './Usage'
 
-const TABS = [['overview', 'Overview'], ['users', 'Users'], ['activity', 'Activity'], ['system', 'System']]
+const TABS = [['overview', 'Overview'], ['users', 'Users'], ['messages', 'Messages'], ['activity', 'Activity'], ['system', 'System']]
 const utc = (d) => (d ? new Date(String(d).endsWith('Z') ? d : d + 'Z') : null)
 
 function ago(d) {
@@ -73,7 +73,7 @@ function Overview({ stats, system, openUser }) {
           <div className="mt-2"><ServingBadge serving={system?.serving} /></div>
           <div className="mt-2 truncate text-xs text-ink-3">{system ? (system.serving === 'openrouter' ? 'GPU box offline, free models' : system.serving === 'gpu' ? 'Your own GPU' : 'Nothing reachable') : '…'}</div>
         </div>
-        <Stat label="Users" value={fmt(stats.users)} note={`${stats.pro_users} Pro · ${stats.banned_users} banned`} />
+        <Stat label="Users" value={fmt(stats.users)} note={`${stats.pro_users} Myelin · ${stats.banned_users} banned`} />
         <Stat label="Active users" value={fmt(stats.active_users_24h)} note={`today · ${stats.active_users_7d} this week`} />
         <Stat label="Sign-ups" value={fmt(stats.signups_24h)} note={`today · ${stats.signups_7d} this week`} />
         <Stat label="Tokens today" value={short(stats.tokens_24h)} note={`${fmt(stats.requests_24h)} requests`} />
@@ -100,7 +100,7 @@ function Overview({ stats, system, openUser }) {
         <Section title="Totals">
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
             {[['Tokens (30 days)', fmt(stats.tokens_30d)], ['Sign-ups (30 days)', fmt(signups30)], ['Chats', fmt(stats.conversations)],
-              ['Messages', fmt(stats.messages)], ['Active API keys', fmt(stats.active_keys)], ['Pro users', fmt(stats.pro_users)]].map(([k, v]) => (
+              ['Messages', fmt(stats.messages)], ['Active API keys', fmt(stats.active_keys)], ['Myelin users', fmt(stats.pro_users)]].map(([k, v]) => (
               <div key={k} className="flex justify-between gap-2 border-b border-line pb-2"><dt className="text-ink-3">{k}</dt><dd className="tabular-nums">{v}</dd></div>
             ))}
           </dl>
@@ -135,7 +135,7 @@ function Users({ openUser, refreshKey }) {
           <input className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-3" placeholder="Search by email" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search users" />
         </div>
         <select value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter users" className="rounded-xl border border-line bg-surface px-3 py-2 text-sm">
-          <option value="all">All users</option><option value="free">Free</option><option value="pro">Pro</option><option value="banned">Banned</option><option value="admin">Admins</option>
+          <option value="all">All users</option><option value="free">Neuron</option><option value="pro">Myelin</option><option value="banned">Banned</option><option value="admin">Admins</option>
         </select>
         <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort users" className="rounded-xl border border-line bg-surface px-3 py-2 text-sm">
           {SORTS.map(([k, l]) => <option key={k} value={k}>Sort: {l}</option>)}
@@ -159,7 +159,7 @@ function Users({ openUser, refreshKey }) {
                     {u.is_admin && <Badge>admin</Badge>}{u.is_banned && <Badge tone="danger">banned</Badge>}
                   </div>
                 </td>
-                <td>{u.plan === 'pro' ? <Badge tone="accent">Pro</Badge> : <Badge>Free</Badge>}</td>
+                <td>{u.plan === 'pro' ? <Badge tone="accent">Myelin</Badge> : <Badge>Neuron</Badge>}</td>
                 <td className="text-right tabular-nums">{short(u.tokens_24h)}</td>
                 <td className="text-right tabular-nums">{short(u.tokens_7d)}</td>
                 <td className="text-right tabular-nums text-ink-2">{short(u.tokens_total)}</td>
@@ -205,12 +205,12 @@ function UserDrawer({ id, onClose, onChanged }) {
         {error && <Alert>{error}</Alert>}
         {!d ? <p className="text-ink-3">Loading…</p> : (<>
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            {d.plan === 'pro' ? <Badge tone="accent">Pro</Badge> : <Badge>Free</Badge>}
+            {d.plan === 'pro' ? <Badge tone="accent">Myelin</Badge> : <Badge>Neuron</Badge>}
             {d.is_admin && <Badge>admin</Badge>}{d.is_banned && <Badge tone="danger">banned</Badge>}
             <span className="text-ink-3">Joined {utc(d.created_at).toLocaleString()} · last active {ago(d.last_active)}{d.training_opt_in && " · helps train Synapse"}</span>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="Tokens today" value={short(d.tokens_today)} note={`of ${short(d.tokens_per_day)} per day`} />
+            <Stat label="Used this week" value={usd(d.usd_this_week)} note={`of ${usd(d.usd_per_week)} · ${short(d.tokens_today)} tokens today`} />
             <Stat label="This week" value={short(d.tokens_7d)} />
             <Stat label="All time" value={short(d.tokens_total)} note={`${fmt(d.requests_total)} requests`} />
             <Stat label="Chats" value={fmt(d.conversations)} note={`${fmt(d.messages)} messages · ${d.sessions} login${d.sessions === 1 ? '' : 's'}`} />
@@ -222,7 +222,7 @@ function UserDrawer({ id, onClose, onChanged }) {
           <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
             <label className="mr-2 flex items-center gap-2 text-sm">Plan
               <select value={d.plan} onChange={(e) => act('', 'PATCH', { plan: e.target.value })} className="rounded-lg border border-line bg-surface px-2 py-1.5">
-                <option value="free">Free</option><option value="pro">Pro</option>
+                <option value="free">Neuron (free)</option><option value="pro">Myelin (paid)</option>
               </select>
             </label>
             {actions.map((a) => <button key={a.label} className={`btn ${a.danger ? 'btn-danger' : 'btn-ghost'} py-1.5`} onClick={() => setAsk(a)}>{a.label}</button>)}
@@ -350,20 +350,59 @@ function System({ system }) {
       <Section title="Plans and limits" className="lg:col-span-2">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[36rem] text-left text-sm">
-            <thead className="text-xs text-ink-3"><tr><th className="pb-2 font-normal">Plan</th><th className="pb-2 text-right font-normal">Price</th><th className="pb-2 text-right font-normal">Tokens / day</th><th className="pb-2 text-right font-normal">Requests / min</th><th className="pb-2 text-right font-normal">Chat memory</th><th className="pb-2 text-right font-normal">Max answer</th><th className="pb-2 text-right font-normal">At once</th></tr></thead>
+            <thead className="text-xs text-ink-3"><tr><th className="pb-2 font-normal">Plan</th><th className="pb-2 text-right font-normal">Price</th><th className="pb-2 text-right font-normal">Use / week</th><th className="pb-2 text-right font-normal">Requests / min</th><th className="pb-2 text-right font-normal">Chat memory</th><th className="pb-2 text-right font-normal">Max answer</th><th className="pb-2 text-right font-normal">At once</th></tr></thead>
             <tbody>{system.plans.map((p) => (
               <tr key={p.name} className="border-t border-line">
                 <td className="py-2 font-medium">{p.label}</td><td className="text-right">${p.price_usd}/mo</td>
-                <td className="text-right tabular-nums">{fmt(p.tokens_per_day)}</td><td className="text-right tabular-nums">{p.requests_per_minute}</td>
+                <td className="text-right tabular-nums">{usd(p.usd_per_week)}</td><td className="text-right tabular-nums">{p.requests_per_minute}</td>
                 <td className="text-right tabular-nums">{fmt(p.max_context_tokens)}</td><td className="text-right tabular-nums">{fmt(p.max_output_tokens)}</td>
                 <td className="text-right tabular-nums">{p.max_concurrent}</td>
               </tr>))}
             </tbody>
           </table>
         </div>
-        <p className="mt-3 text-xs text-ink-3">Plans are set in api/app/config.py. Change a user's plan in the Users tab.</p>
+        <p className="mt-3 text-xs text-ink-3">Use is measured at {usd(system.plans[0]?.price_per_million_usd)} per million tokens ({usd(system.plans[0]?.cache_price_per_million_usd)} for cached input) and resets Monday 00:00 UTC. Plans are set in api/app/config.py. Change a user's plan in the Users tab.</p>
       </Section>
       <TrainingData />
+    </div>
+  )
+}
+
+const TOPIC_LABELS = { myelin: 'Myelin plan', business: 'Business', other: 'Other' }
+
+// Contact form messages, newest first. Reply by email, then mark them handled.
+function Messages({ openUser, refreshKey }) {
+  const [rows, setRows] = useState(null)
+  const [show, setShow] = useState('open')
+  const [error, setError] = useState('')
+  useEffect(() => { api('/api/admin/messages').then(setRows).catch((e) => setError(e.message)) }, [refreshKey])
+  const toggle = (m) => api(`/api/admin/messages/${m.id}`, { method: 'PATCH', body: { handled: !m.handled } })
+    .then((u) => setRows((rs) => rs.map((r) => (r.id === u.id ? u : r)))).catch((e) => setError(e.message))
+  if (error) return <Alert>{error}</Alert>
+  if (!rows) return <p className="text-ink-3">Loading…</p>
+  const list = rows.filter((m) => show === 'all' || (show === 'open' ? !m.handled : m.handled))
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 text-sm">
+        <select className="input px-3 py-2" value={show} onChange={(e) => setShow(e.target.value)} aria-label="Show">
+          <option value="open">Open ({rows.filter((m) => !m.handled).length})</option>
+          <option value="handled">Handled</option><option value="all">All</option>
+        </select>
+        <span className="text-ink-3">To give someone Myelin, open their user and change the plan.</span>
+      </div>
+      {list.length === 0 ? <p className="text-ink-3">No messages here.</p> : list.map((m) => (
+        <article key={m.id} className={`card p-5 ${m.handled ? 'opacity-60' : ''}`}>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <b>{m.name}</b>
+            <a href={`mailto:${m.email}?subject=${encodeURIComponent('Re: your message to Synapse')}`} className="text-accent underline">{m.email}</a>
+            <Badge tone={m.topic === 'myelin' ? 'accent' : 'muted'}>{TOPIC_LABELS[m.topic] ?? m.topic}</Badge>
+            {m.user && <button className="text-xs underline text-ink-3" onClick={() => openUser(m.user.id)}>account · {m.user.plan === 'pro' ? 'Myelin' : 'Neuron'}</button>}
+            <span className="ml-auto text-xs text-ink-3">{utc(m.created_at).toLocaleString()}</span>
+          </div>
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink-2">{m.message}</p>
+          <button className="btn btn-ghost mt-4" onClick={() => toggle(m)}>{m.handled ? 'Mark as open' : 'Mark as handled'}</button>
+        </article>
+      ))}
     </div>
   )
 }
@@ -404,6 +443,7 @@ export default function Admin() {
           {error && <div className="mb-4"><Alert>{error}</Alert></div>}
           {tab === 'overview' && <Overview stats={stats} system={system} openUser={setOpenId} />}
           {tab === 'users' && <Users openUser={setOpenId} refreshKey={refreshKey} />}
+          {tab === 'messages' && <Messages openUser={setOpenId} refreshKey={refreshKey} />}
           {tab === 'activity' && <Activity openUser={setOpenId} refreshKey={refreshKey} />}
           {tab === 'system' && <System system={system} />}
         </div>

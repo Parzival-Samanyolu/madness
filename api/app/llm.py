@@ -90,6 +90,7 @@ class StreamResult:
         self.reasoning = ""
         self.prompt_tokens = 0
         self.completion_tokens = 0
+        self.cached_tokens = 0
         self.got_usage = False
 
     def finalize(self, prompt_text: str):
@@ -116,18 +117,34 @@ async def stream_chat(body: dict, result: StreamResult) -> AsyncIterator[bytes]:
                 yield (line + "\n\n").encode()
 
 
-def rename_model(line: bytes, name: str) -> bytes:
-    """Replace the real model name in a streamed chunk with the public one."""
+def public_usage(usage: dict, chunk: dict, price) -> dict:
+    """Usage as clients see it: our own measured cost (cache discount included), no upstream billing fields."""
+    out = {k: v for k, v in usage.items() if k not in ("cost", "cost_details", "is_byok")}
+    cached = cached_tokens(usage, chunk)
+    out["prompt_tokens_details"] = {**(usage.get("prompt_tokens_details") or {}), "cached_tokens": cached}
+    out["cost"] = round(price(usage.get("prompt_tokens") or 0, usage.get("completion_tokens") or 0, cached), 8)
+    return out
+
+
+def rename_model(line: bytes, name: str, price=None) -> bytes:
+    """Replace the real model name in a streamed chunk with the public one, and the usage cost with ours."""
     if not line.startswith(b"data:") or line.startswith(b"data: [DONE]"):
         return line
     try:
         chunk = json.loads(line[5:])
     except ValueError:
         return line
-    if isinstance(chunk, dict) and "model" in chunk:
+    if not isinstance(chunk, dict):
+        return line
+    changed = False
+    if "model" in chunk:
         chunk["model"] = name
-        return f"data: {json.dumps(chunk)}\n\n".encode()
-    return line
+        changed = True
+    if price and isinstance(chunk.get("usage"), dict):
+        chunk["usage"] = public_usage(chunk["usage"], chunk, price)
+        chunk.pop("provider", None)
+        changed = True
+    return f"data: {json.dumps(chunk)}\n\n".encode() if changed else line
 
 
 def _collect(data: str, result: StreamResult):
@@ -139,11 +156,21 @@ def _collect(data: str, result: StreamResult):
     if usage:
         result.prompt_tokens = usage.get("prompt_tokens", 0)
         result.completion_tokens = usage.get("completion_tokens", 0)
+        result.cached_tokens = cached_tokens(usage, chunk)
         result.got_usage = True
     for choice in chunk.get("choices") or []:
         delta = choice.get("delta") or {}
         result.content += delta.get("content") or ""
         result.reasoning += delta.get("reasoning_content") or delta.get("reasoning") or ""
+
+
+def cached_tokens(usage: dict, chunk: dict | None = None) -> int:
+    """Cached prompt tokens: OpenAI-style usage details, or llama.cpp's `timings.cache_n`."""
+    details = usage.get("prompt_tokens_details") or {}
+    n = details.get("cached_tokens")
+    if n is None and chunk:
+        n = (chunk.get("timings") or {}).get("cache_n")
+    return max(0, int(n or 0))
 
 
 async def complete_chat(body: dict) -> dict:

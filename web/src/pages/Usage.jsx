@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, fmt } from '../api'
+import { Link } from 'react-router-dom'
+import { api, fmt, usd } from '../api'
 import { TopBar } from '../components/AppShell'
 import { useAuth } from '../auth'
 
@@ -73,9 +74,12 @@ export default function Usage() {
   const [data, setData] = useState([])
   const [table, setTable] = useState(false)
   useEffect(() => { refresh(); api('/api/usage?days=30').then(setData).catch(() => {}) }, []) // eslint-disable-line
-  const used = user?.tokens_used_today ?? 0, limit = user?.plan.tokens_per_day ?? 1
+  const used = user?.usd_used_this_week ?? 0, limit = user?.plan.usd_per_week || 1
   const pct = Math.min(100, (used / limit) * 100)
   const total = useMemo(() => data.reduce((a, d) => a + d.web_tokens + d.api_tokens, 0), [data])
+  const cached = useMemo(() => data.reduce((a, d) => a + (d.cached_tokens || 0), 0), [data])
+  const spent = useMemo(() => data.reduce((a, d) => a + (d.cost_usd || 0), 0), [data])
+  const resets = user ? new Date(Date.now() + user.week_resets_in * 1000) : null
 
   return (
     <>
@@ -83,17 +87,20 @@ export default function Usage() {
     <div className="flex-1 overflow-y-auto"><div className="mx-auto max-w-4xl px-4 pt-4 pb-10">
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="card p-5 sm:col-span-2">
-          <div className="text-sm text-ink-2">Tokens used today</div>
-          <div className="mt-1 text-3xl font-bold">{fmt(used)} <span className="text-base font-normal text-ink-3">/ {fmt(limit)}</span></div>
+          <div className="text-sm text-ink-2">Used this week</div>
+          <div className="mt-1 text-3xl font-bold">{usd(used)} <span className="text-base font-normal text-ink-3">/ {usd(limit)}</span></div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-raised" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
             <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
           </div>
-          <div className="mt-2 text-xs text-ink-3">{user?.plan.label} plan · resets 00:00 UTC</div>
+          <div className="mt-2 text-xs text-ink-3">
+            {user?.plan.label} plan · resets {resets?.toLocaleString(undefined, { weekday: 'long', hour: '2-digit', minute: '2-digit' })}
+            {user?.plan.name === 'free' && <> · <Link to="/contact?plan=myelin" className="underline">Need more? Get Myelin</Link></>}
+          </div>
         </div>
         <div className="card p-5">
           <div className="text-sm text-ink-2">Last 30 days</div>
           <div className="mt-1 text-3xl font-bold">{fmt(total)}</div>
-          <div className="mt-2 text-xs text-ink-3">tokens total</div>
+          <div className="mt-2 text-xs text-ink-3">tokens total · {fmt(cached)} from cache · {usd(spent)} of use</div>
         </div>
       </div>
       <div className="card mt-4 p-5">
