@@ -55,8 +55,10 @@ def for_fallback(body: dict) -> dict:
     if len(models) > 1:
         out["models"] = models  # OpenRouter tries these in order
     kw = out.pop("chat_template_kwargs", None) or {}
-    effort = kw.get("reasoning_effort") or out.pop("reasoning_effort", None)
-    out.pop("reasoning_effort", None)
+    budget = out.pop("thinking_budget_tokens", None)
+    effort = out.pop("reasoning_effort", None)
+    if effort is None and "enable_thinking" in kw:  # undo prepare_body's mode mapping
+        effort = "low" if not kw["enable_thinking"] else "medium" if budget else "high"
     if effort in ("low", "medium", "high"):
         out["reasoning"] = {"effort": effort}
     return out
@@ -66,6 +68,10 @@ def estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
+# Thinking tokens allowed per mode (llama.cpp `thinking_budget_tokens`); missing = unlimited.
+THINKING_BUDGET = {"medium": 4096}
+
+
 def prepare_body(body: dict, max_output_tokens: int) -> dict:
     """Normalise an OpenAI-style request for the model server."""
     out = dict(body)
@@ -73,12 +79,16 @@ def prepare_body(body: dict, max_output_tokens: int) -> dict:
     requested = out.get("max_completion_tokens") or out.get("max_tokens") or max_output_tokens
     out["max_tokens"] = min(int(requested), max_output_tokens)
     out.pop("max_completion_tokens", None)
-    effort = out.get("reasoning_effort")
+    effort = out.pop("reasoning_effort", None)
     if effort in ("low", "medium", "high"):
-        # gpt-oss reads reasoning effort from its chat template
+        # Qwen3.6 has no effort levels, only thinking on/off, so the modes become:
+        # low = no thinking, medium = thinking capped at THINKING_BUDGET[medium] tokens, high = no cap.
         kw = dict(out.get("chat_template_kwargs") or {})
-        kw["reasoning_effort"] = effort
+        kw["enable_thinking"] = effort != "low"
         out["chat_template_kwargs"] = kw
+        budget = THINKING_BUDGET.get(effort)
+        if budget:
+            out["thinking_budget_tokens"] = min(budget, max(256, out["max_tokens"] // 2))
     if out.get("stream"):
         out["stream_options"] = {"include_usage": True}
     return out

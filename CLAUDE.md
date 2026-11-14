@@ -6,7 +6,7 @@ update **Status** and **Next steps** whenever something changes.
 ## What this is
 A self-hosted AI SaaS that the owner (Parzival) is building:
 - A ChatGPT-style website and an OpenAI-compatible API (`/v1`).
-- The model is **gpt-oss-20b** (llama.cpp, MXFP4) on an **RTX 5060 Ti 16 GB** in a GPU box at home.
+- The model is **Qwen3.6-35B-A3B** (llama.cpp, unsloth UD-Q4_K_M, 22 GB) on an **RTX 5060 Ti 16 GB** + 32 GB RAM in a GPU box at home. Most layers' experts sit in RAM (`LLM_CPU_MOE`).
 - The owner is a beginner. Explain in plain words, ask before choices that matter, and do the work for them.
 
 ## Where everything lives
@@ -75,6 +75,10 @@ GPU box: llama.cpp server-cuda on 127.0.0.1:8080; madness-tunnel.service runs ss
   - `GET /v1/key` (API-key auth) returns plan, limits and `usage.tokens_today` / `resets_at`. Xarı Bülbül shows it in Settings.
   - 429s carry `Retry-After`.
   - Website: full Xarı Bülbül section on the home page (`#xari-bulbul`, screenshot at `web/public/xari-bulbul.png`), nav + footer links, a note on the Keys page, a docs section.
+- [x] **2026-11-14: model switched from gpt-oss-20b to Qwen3.6-35B-A3B** (owner's choice, after benchmarking gpt-oss-20b in Xarı Bülbül at 15/25 tasks; Qwen3.6 reports SWE-bench Verified 73.4 vs ~34).
+  - Modes (`reasoning_effort`, mapped in `llm.prepare_body`): low = `enable_thinking: false`, medium = thinking with `thinking_budget_tokens` 4096, high = no cap. The fallback gets the original effort back.
+  - The installer tries `LLM_CPU_MOE` 24…40 (the model can't fit the card). Expect roughly 25-35 tok/s per chat; measure with `madness bench`.
+  - Not measured on the box yet. If llama.cpp ignores `thinking_budget_tokens`, medium behaves like high. Low-bit quants garble on CUDA 13.2.
 - [ ] Ideas not built yet: Stripe billing, file upload, Google login, password reset by email.
 
 ## Next steps when the owner comes back

@@ -93,8 +93,24 @@ def test_prepare_body_clamps_and_reasoning():
     from app.llm import prepare_body
     b = prepare_body({"max_tokens": 10**6, "reasoning_effort": "high", "stream": True, "messages": []}, 4096)
     assert b["max_tokens"] == 4096
-    assert b["chat_template_kwargs"]["reasoning_effort"] == "high"
+    assert b["chat_template_kwargs"] == {"enable_thinking": True}
+    assert "thinking_budget_tokens" not in b and "reasoning_effort" not in b
     assert b["stream_options"] == {"include_usage": True}
+
+
+def test_modes_map_to_thinking():
+    from app.llm import for_fallback, prepare_body
+    low = prepare_body({"reasoning_effort": "low", "messages": []}, 8192)
+    assert low["chat_template_kwargs"] == {"enable_thinking": False} and "thinking_budget_tokens" not in low
+    med = prepare_body({"reasoning_effort": "medium", "messages": []}, 8192)
+    assert med["chat_template_kwargs"] == {"enable_thinking": True} and med["thinking_budget_tokens"] == 4096
+    # the budget never takes more than half of a small answer limit
+    assert prepare_body({"reasoning_effort": "medium", "max_tokens": 1000, "messages": []}, 8192)["thinking_budget_tokens"] == 500
+    # the OpenRouter fallback gets the original mode back
+    for effort in ("low", "medium", "high"):
+        fb = for_fallback(prepare_body({"reasoning_effort": effort, "messages": []}, 8192))
+        assert fb["reasoning"] == {"effort": effort}
+        assert "chat_template_kwargs" not in fb and "thinking_budget_tokens" not in fb
 
 
 def test_prompt_too_long(client):
