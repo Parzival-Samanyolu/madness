@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..config import get_settings
 from ..db import get_db
-from ..limits import hit, plan_for, tokens_used_today
+from ..limits import hit, plan_for, seconds_until_week_reset, tokens_used_today, usd_used_this_week
 from ..models import LoginSession, User
 from ..security import (COOKIE_NAME, client_ip, create_session, current_user,
                         hash_password, sha256, verify_password)
@@ -31,6 +31,8 @@ def user_out(u: User) -> dict:
     return {
         "id": u.id, "email": u.email, "plan": plan.model_dump(), "is_admin": u.is_admin,
         "tokens_used_today": tokens_used_today(u.id), "training_opt_in": u.training_opt_in,
+        "usd_used_this_week": round(usd_used_this_week(u.id), 4),
+        "week_resets_in": seconds_until_week_reset(),
     }
 
 

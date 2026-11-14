@@ -53,18 +53,34 @@ def test_rate_limit_rpm(client):
     signup(client)
     h = {"Authorization": f"Bearer {make_key(client)}"}
     body = {"messages": [{"role": "user", "content": "x"}]}
-    codes = [client.post("/v1/chat/completions", headers=h, json=body).status_code for _ in range(11)]
-    assert codes[:10] == [200] * 10 and codes[10] == 429
+    codes = [client.post("/v1/chat/completions", headers=h, json=body).status_code for _ in range(21)]
+    assert codes[:20] == [200] * 20 and codes[20] == 429
 
 
-def test_daily_token_quota(client):
+def test_weekly_usage_limit(client):
     from app import limits
     me = signup(client)
-    limits.add_tokens(me["id"], 200_000)
+    limits.add_usage(me["id"], limits.plan_for("free"), 10_000_000, 0)  # $10 at $1 per million
     h = {"Authorization": f"Bearer {make_key(client)}"}
     r = client.post("/v1/chat/completions", headers=h, json={"messages": [{"role": "user", "content": "x"}]})
     assert r.status_code == 429
-    assert "Daily token limit" in r.json()["error"]["message"]
+    assert "Weekly usage limit" in r.json()["error"]["message"]
+    assert int(r.headers["retry-after"]) <= 7 * 86400
+
+
+def test_cached_tokens_cost_a_tenth():
+    from app import limits
+    plan = limits.plan_for("free")
+    assert limits.cost_usd(plan, 1_000_000, 0) == 1.0
+    assert abs(limits.cost_usd(plan, 1_000_000, 0, cached_tokens=1_000_000) - 0.10) < 1e-9
+    assert abs(limits.cost_usd(plan, 1_000_000, 1_000_000, cached_tokens=500_000) - 1.55) < 1e-9
+
+
+def test_cached_tokens_from_usage():
+    from app.llm import cached_tokens
+    assert cached_tokens({"prompt_tokens_details": {"cached_tokens": 300}}) == 300
+    assert cached_tokens({}, {"timings": {"cache_n": 42}}) == 42
+    assert cached_tokens({}) == 0
 
 
 def test_bad_body(client):
@@ -84,7 +100,7 @@ def test_prepare_body_clamps_and_reasoning():
 def test_prompt_too_long(client):
     signup(client)
     h = {"Authorization": f"Bearer {make_key(client)}"}
-    big = "word " * 40_000  # ~50k tokens > free plan's 32k
+    big = "word " * 110_000  # ~137k tokens > the plans' 128k
     r = client.post("/v1/chat/completions", headers=h, json={"messages": [{"role": "user", "content": big}]})
     assert r.status_code == 400 and "too long" in r.json()["error"]["message"]
     # slot was released, normal request still works
@@ -107,8 +123,8 @@ def test_models_show_plan_limits(client):
     signup(client)
     h = {"Authorization": f"Bearer {make_key(client)}"}
     m = client.get("/v1/models", headers=h).json()["data"][0]
-    assert m["context_length"] == 32_000 and m["max_output_tokens"] == 4096 and m["max_concurrent"] == 1
-    assert m["pricing"] == {"prompt": "0", "completion": "0"}
+    assert m["context_length"] == 128_000 and m["max_output_tokens"] == 8192 and m["max_concurrent"] == 1
+    assert m["pricing"] == {"prompt": "0.000001", "completion": "0.000001", "input_cache_read": "0.0000001"}
     assert "tools" in m["supported_parameters"]
 
 
@@ -117,8 +133,9 @@ def test_key_info(client):
     h = {"Authorization": f"Bearer {make_key(client)}"}
     client.post("/v1/chat/completions", headers=h, json={"messages": [{"role": "user", "content": "hello"}]})
     d = client.get("/v1/key", headers=h).json()["data"]
-    assert d["plan"] == "free" and d["limits"]["max_concurrent"] == 1
-    assert d["usage"]["tokens_today"] > 0 and d["usage"]["resets_at"] > 0
+    assert d["plan"] == "free" and d["plan_label"] == "Neuron" and d["limits"]["max_concurrent"] == 1
+    assert d["limits"]["usd_per_week"] == 10 and d["limits"]["cache_price_per_million_usd"] == 0.1
+    assert d["usage"]["tokens_today"] > 0 and d["usage"]["usd_this_week"] > 0 and d["usage"]["resets_at"] > 0
     assert client.get("/v1/key").status_code == 401
 
 
@@ -132,3 +149,26 @@ def test_rate_limit_has_retry_after(client, monkeypatch):
     r = client.post("/v1/chat/completions", headers=h, json=body)
     assert r.status_code == 429 and r.json()["error"]["type"] == "rate_limit_error"
     assert 1 <= int(r.headers["retry-after"]) <= 61
+
+
+def test_contact_form_and_admin_inbox(client):
+    r = client.post("/api/contact", json={"name": "Ada", "email": "ada@example.com", "topic": "myelin",
+                                          "message": "I'd like Myelin"})
+    assert r.status_code == 200
+    assert client.post("/api/contact", json={"name": "x", "email": "nope", "message": "m"}).status_code == 422
+    assert client.get("/api/admin/messages").status_code == 401
+    assert client.post("/api/auth/login", json={"email": "admin@example.com", "password": "adminpass123"}).status_code == 200
+    msgs = client.get("/api/admin/messages").json()
+    assert msgs[0]["name"] == "Ada" and msgs[0]["handled"] is False
+    assert client.patch(f"/api/admin/messages/{msgs[0]['id']}", json={"handled": True}).json()["handled"] is True
+
+
+def test_usage_cost_is_ours():
+    from app import limits, llm
+    plan = limits.plan_for("free")
+    line = ('data: ' + json.dumps({"model": "real-model", "provider": "Nvidia", "choices": [],
+            "usage": {"prompt_tokens": 1_000_000, "completion_tokens": 0, "cost": 0, "is_byok": False,
+                      "prompt_tokens_details": {"cached_tokens": 1_000_000}}})).encode()
+    out = json.loads(llm.rename_model(line, "synapse-2", lambda p, c, k: limits.cost_usd(plan, p, c, k))[5:])
+    assert out["model"] == "synapse-2" and "provider" not in out and "is_byok" not in out["usage"]
+    assert abs(out["usage"]["cost"] - 0.10) < 1e-9

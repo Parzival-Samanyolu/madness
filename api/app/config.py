@@ -9,22 +9,30 @@ class Plan(BaseModel):
     label: str
     price_usd: int  # per month, 0 = free
     requests_per_minute: int
-    tokens_per_day: int
+    usd_per_week: float  # usage allowance, measured at price_per_million_usd; resets Monday 00:00 UTC
+    price_per_million_usd: float  # one price for input and output tokens
+    cache_price_per_million_usd: float  # input tokens the model server already had cached
     max_output_tokens: int
     max_concurrent: int
     max_context_tokens: int  # prompt + history the model sees per request
 
 
+# Internal names stay "free"/"pro" (stored on users); people see Neuron and Myelin.
+PRICE_PER_MILLION_USD = 1.0
+CACHE_PRICE_PER_MILLION_USD = 0.10
+
 PLANS: dict[str, Plan] = {
     "free": Plan(
-        name="free", label="Free", price_usd=0,
-        requests_per_minute=10, tokens_per_day=200_000,
-        max_output_tokens=4096, max_concurrent=1, max_context_tokens=32_000,
+        name="free", label="Neuron", price_usd=0,
+        requests_per_minute=20, usd_per_week=10, price_per_million_usd=PRICE_PER_MILLION_USD,
+        cache_price_per_million_usd=CACHE_PRICE_PER_MILLION_USD,
+        max_output_tokens=8192, max_concurrent=1, max_context_tokens=128_000,
     ),
     "pro": Plan(
-        name="pro", label="Pro", price_usd=10,
-        requests_per_minute=60, tokens_per_day=1_000_000,
-        max_output_tokens=16384, max_concurrent=3, max_context_tokens=120_000,
+        name="pro", label="Myelin", price_usd=10,
+        requests_per_minute=60, usd_per_week=50, price_per_million_usd=PRICE_PER_MILLION_USD,
+        cache_price_per_million_usd=CACHE_PRICE_PER_MILLION_USD,
+        max_output_tokens=16384, max_concurrent=3, max_context_tokens=128_000,
     ),
 }
 

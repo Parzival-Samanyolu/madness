@@ -43,3 +43,13 @@ export async function streamChat(convId, payload, onEvent, signal) {
 }
 
 export const fmt = (n) => (n ?? 0).toLocaleString()
+// Dollars: cents for amounts from $1 up, more digits below so small use still shows.
+export const usd = (n) => {
+  const v = n ?? 0
+  return '$' + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: v >= 1 || v === 0 ? 2 : 4 })
+}
+// "about 10M tokens" for a dollar amount at a price per million.
+export const tokensFor = (dollars, perMillion) => {
+  const t = (dollars / perMillion) * 1e6
+  return t >= 1e6 ? `${+(t / 1e6).toFixed(1)}M` : `${Math.round(t / 1e3)}k`
+}

@@ -15,7 +15,7 @@ export function ThemeButton() {
   )
 }
 
-const links = [['/#features', 'Product'], ['/#api', 'API'], ['/#xari-bulbul', 'Xarı Bülbül'], ['/pricing', 'Pricing'], ['/docs', 'Docs']]
+const links = [['/#features', 'Product'], ['/#api', 'API'], ['/#xari-bulbul', 'Xarı Bülbül'], ['/pricing', 'Pricing'], ['/docs', 'Docs'], ['/contact', 'Contact']]
 
 // Pages for visitors (home, pricing, docs): warm "editorial" look.
 export default function Layout() {
@@ -67,6 +67,7 @@ export default function Layout() {
             <h3 className="mb-3 font-medium">Product</h3>
             <Link to="/chat" className="block text-ink-2 hover:text-ink">Chat</Link>
             <Link to="/pricing" className="block text-ink-2 hover:text-ink">Pricing</Link>
+            <Link to="/contact" className="block text-ink-2 hover:text-ink">Contact us</Link>
           </div>
           <div className="space-y-2 text-sm">
             <h3 className="mb-3 font-medium">Developers</h3>

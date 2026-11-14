@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, Outlet, useMatch, useNavigate } from 'react-router-dom'
-import { api, fmt } from '../api'
+import { api, fmt, usd } from '../api'
 import { useAuth } from '../auth'
 import { useTheme } from '../theme'
 import { LogoMark } from './Logo'
@@ -82,7 +82,7 @@ function AccountMenu() {
     )}>
       {(close) => (<>
         <div className="px-2.5 py-2 text-xs text-ink-3">
-          {fmt(user?.tokens_used_today)} / {fmt(user?.plan.tokens_per_day)} tokens used today
+          {usd(user?.usd_used_this_week)} of {usd(user?.plan.usd_per_week)} used this week
         </div>
         <div className="my-1 h-px bg-line" />
         <button className="menu-item" onClick={() => { close(); openSettings() }}><GearIcon size={17} />Settings</button>

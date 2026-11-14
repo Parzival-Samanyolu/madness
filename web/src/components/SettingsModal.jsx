@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, fmt } from '../api'
+import { api, fmt, usd } from '../api'
 import { useAuth } from '../auth'
 import { useTheme } from '../theme'
 import { useShell } from './AppShell'
@@ -140,7 +140,7 @@ function Account({ onClose }) {
   return (
     <>
       <Row label="Email"><span className="text-sm text-ink-2">{user?.email}</span></Row>
-      <Row label={`${user?.plan.label} plan`} hint={`${fmt(user?.plan.tokens_per_day)} tokens a day · ${fmt(user?.plan.max_context_tokens)} tokens of chat memory`}>
+      <Row label={`${user?.plan.label} plan`} hint={`${usd(user?.plan.usd_per_week)} of use a week · ${fmt(user?.plan.max_context_tokens)} tokens of chat memory`}>
         <button className="btn btn-ghost" onClick={() => { onClose(); nav('/usage') }}>View usage</button>
       </Row>
       <div className="border-b border-line"><ChangePassword /></div>

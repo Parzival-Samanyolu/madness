@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, false, true
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, false, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base, utcnow
@@ -50,6 +50,9 @@ class Usage(Base):
     source: Mapped[str] = mapped_column(String(16))  # "web" | "api"
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    # input tokens the model server had cached (cheaper), and the request's price in USD
+    cached_tokens: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    cost_usd: Mapped[float] = mapped_column(Float, default=0.0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
 
@@ -96,3 +99,16 @@ class SharedChat(Base):
     title: Mapped[str] = mapped_column(String(200))
     messages_json: Mapped[str] = mapped_column(Text)  # [{"role": ..., "content": ...}]
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class ContactMessage(Base):
+    """A message from the website's contact form (e.g. asking for the Myelin plan)."""
+    __tablename__ = "contact_messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    email: Mapped[str] = mapped_column(String(320))
+    topic: Mapped[str] = mapped_column(String(32), default="myelin")
+    message: Mapped[str] = mapped_column(Text)
+    handled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
