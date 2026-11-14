@@ -26,7 +26,7 @@ case "${1:-help}" in
       nvidia-smi --query-gpu=name,memory.used,memory.total,utilization.gpu,temperature.gpu --format=csv,noheader || true
       echo; echo "== Model"
       curl -fsS --max-time 5 "http://127.0.0.1:8080/health" && echo || echo "  not running (madness logs)"
-      echo "  context pool $(env_get LLM_CTX) tokens, $(env_get LLM_PARALLEL) chats at once"
+      echo "  context pool $(env_get LLM_CTX) tokens, $(env_get LLM_PARALLEL) chats at once, $(env_get LLM_CPU_MOE) layers' experts in RAM"
     fi ;;
   logs) shift; compose logs -f --tail 200 "$@" ;;
   install-log) tail -f /var/log/madness-install.log ;;

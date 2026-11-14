@@ -362,13 +362,19 @@ gpu_container_runtime() {
 gpu_start_model() {
   step "Starting the model (first start downloads ~12 GB of gpt-oss-20b)"
   mkdir -p "$DIR/models"
-  [[ -n $(env_get LLM_CTX) ]] || env_set LLM_CTX 131072
-  [[ -n $(env_get LLM_PARALLEL) ]] || env_set LLM_PARALLEL 8
-  for ctx in 131072 98304 65536 32768; do
+  [[ -n $(env_get LLM_CTX) ]] || env_set LLM_CTX 524288
+  [[ -n $(env_get LLM_PARALLEL) ]] || env_set LLM_PARALLEL 4
+  # Goal: 4 chats that can each reach gpt-oss's full 131072 tokens (pool 524288). The model alone
+  # nearly fills 16 GB, so experts of some layers move to system RAM (--n-cpu-moe), which is a bit
+  # slower, until the pool fits. Only then fall back to smaller pools.
+  local tries=("524288 0" "524288 6" "524288 10" "524288 14" "524288 18" "262144 10" "131072 0" "131072 8" "65536 0")
+  for t in "${tries[@]}"; do
+    local ctx=${t% *} moe=${t#* }
     (( ctx > $(env_get LLM_CTX) )) && continue
     env_set LLM_CTX "$ctx"
+    env_set LLM_CPU_MOE "$moe"
     compose up -d --force-recreate
-    echo "  Trying context pool of $ctx tokens with $(env_get LLM_PARALLEL) parallel chats..."
+    echo "  Trying a context pool of $ctx tokens for $(env_get LLM_PARALLEL) chats, $moe layers' experts in RAM..."
     local started=0 deadline=$(( $(date +%s) + 4 * 3600 ))  # slow internet: 12 GB can take a while
     while (( $(date +%s) < deadline )); do
       local restarts; restarts=$(docker inspect -f '{{.RestartCount}}' "$(compose ps -q llm)" 2>/dev/null || echo 0)
@@ -377,14 +383,14 @@ gpu_start_model() {
       fi
       if curl -fsS --max-time 3 "http://127.0.0.1:8080/health" 2>/dev/null | grep -q ok; then started=1; break; fi
       if compose logs --tail 80 llm 2>&1 | grep -qiE "out of memory|failed to allocate|cudaMalloc failed|failed to create context"; then
-        warn "Not enough GPU memory for $ctx tokens, trying smaller"; break
+        warn "Not enough GPU memory for $ctx tokens with $moe layers in RAM, trying the next setting"; break
       fi
       local last; last=$(compose logs --tail 1 llm 2>&1 | tail -1 | cut -c1-110)
       printf '\r  %s' "${last//$'\r'/}"; printf '\e[K'
       sleep 5
     done
     echo
-    if (( started )); then ok "Model online: context pool $ctx tokens, $(env_get LLM_PARALLEL) chats at once"; return 0; fi
+    if (( started )); then ok "Model online: context pool $ctx tokens, $(env_get LLM_PARALLEL) chats at once, $moe layers' experts in RAM"; return 0; fi
   done
   die "Model did not start. Run 'madness logs' to see why."
 }
