@@ -101,3 +101,34 @@ def test_stream_hides_real_model_name(client):
                              "messages": [{"role": "user", "content": "hi"}]}) as r:
         chunks = [json.loads(l[5:]) for l in r.iter_lines() if l.startswith("data:") and "[DONE]" not in l]
     assert chunks and all(c.get("model", "synapse-2") == "synapse-2" for c in chunks)
+
+
+def test_models_show_plan_limits(client):
+    signup(client)
+    h = {"Authorization": f"Bearer {make_key(client)}"}
+    m = client.get("/v1/models", headers=h).json()["data"][0]
+    assert m["context_length"] == 32_000 and m["max_output_tokens"] == 4096 and m["max_concurrent"] == 1
+    assert m["pricing"] == {"prompt": "0", "completion": "0"}
+    assert "tools" in m["supported_parameters"]
+
+
+def test_key_info(client):
+    signup(client)
+    h = {"Authorization": f"Bearer {make_key(client)}"}
+    client.post("/v1/chat/completions", headers=h, json={"messages": [{"role": "user", "content": "hello"}]})
+    d = client.get("/v1/key", headers=h).json()["data"]
+    assert d["plan"] == "free" and d["limits"]["max_concurrent"] == 1
+    assert d["usage"]["tokens_today"] > 0 and d["usage"]["resets_at"] > 0
+    assert client.get("/v1/key").status_code == 401
+
+
+def test_rate_limit_has_retry_after(client, monkeypatch):
+    from app.config import PLANS
+    monkeypatch.setattr(PLANS["free"], "requests_per_minute", 1)
+    signup(client)
+    h = {"Authorization": f"Bearer {make_key(client)}"}
+    body = {"messages": [{"role": "user", "content": "hello"}]}
+    assert client.post("/v1/chat/completions", headers=h, json=body).status_code == 200
+    r = client.post("/v1/chat/completions", headers=h, json=body)
+    assert r.status_code == 429 and r.json()["error"]["type"] == "rate_limit_error"
+    assert 1 <= int(r.headers["retry-after"]) <= 61

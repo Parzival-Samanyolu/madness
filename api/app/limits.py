@@ -84,7 +84,9 @@ def hit(key: str, limit: int, window: int, message: str):
     bucket = int(time.time() // window)
     n = store().incrby(f"rl:{key}:{bucket}", 1, window + 5)
     if n > limit:
-        raise HTTPException(429, {"message": message, "type": "rate_limit_error"})
+        retry = max(1, int((bucket + 1) * window - time.time()) + 1)
+        raise HTTPException(429, {"message": message, "type": "rate_limit_error"},
+                            headers={"Retry-After": str(retry)})
 
 
 def check_request(user_id: int, plan: Plan):
@@ -95,7 +97,13 @@ def check_request(user_id: int, plan: Plan):
         raise HTTPException(429, {
             "message": f"Daily token limit reached ({plan.tokens_per_day:,} on the {plan.label} plan). Resets at 00:00 UTC.",
             "type": "rate_limit_error",
-        })
+        }, headers={"Retry-After": str(seconds_until_reset())})
+
+
+def seconds_until_reset() -> int:
+    """Seconds until the daily token quota resets at 00:00 UTC."""
+    now = time.time()
+    return max(1, int(86400 - now % 86400))
 
 
 def tokens_used_today(user_id: int) -> int:
@@ -121,7 +129,7 @@ class Slot:
             raise HTTPException(429, {
                 "message": f"Only {self.limit} generation(s) at a time on your plan. Wait for the current one to finish.",
                 "type": "rate_limit_error",
-            })
+            }, headers={"Retry-After": "2"})
         self.held = True
 
     def release(self):
