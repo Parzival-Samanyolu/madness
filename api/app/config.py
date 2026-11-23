@@ -26,13 +26,13 @@ PLANS: dict[str, Plan] = {
         name="free", label="Neuron", price_usd=0,
         requests_per_minute=20, usd_per_week=10, price_per_million_usd=PRICE_PER_MILLION_USD,
         cache_price_per_million_usd=CACHE_PRICE_PER_MILLION_USD,
-        max_output_tokens=8192, max_concurrent=1, max_context_tokens=64_000,
+        max_output_tokens=8192, max_concurrent=1, max_context_tokens=128_000,
     ),
     "pro": Plan(
         name="pro", label="Myelin", price_usd=10,
         requests_per_minute=60, usd_per_week=50, price_per_million_usd=PRICE_PER_MILLION_USD,
         cache_price_per_million_usd=CACHE_PRICE_PER_MILLION_USD,
-        max_output_tokens=16384, max_concurrent=3, max_context_tokens=64_000,
+        max_output_tokens=16384, max_concurrent=3, max_context_tokens=128_000,
     ),
 }
 
@@ -47,7 +47,9 @@ class Settings(BaseSettings):
     redis_url: str = ""  # empty = in-memory limiter (dev only)
     llm_url: str = "http://localhost:9000"
     llm_api_key: str = ""  # shared secret with llama.cpp on the GPU box
-    model_name: str = "qwen3.6-35b-a3b"  # what the GPU box actually runs (never shown to users)
+    # What the GPU box actually runs (never shown to users). A name with "qwen" in it switches the thinking
+    # modes to Qwen's on/off switch; anything else uses Inkling 2's effort levels.
+    model_name: str = "inkling-2-mini"
     # Backup while the GPU box is offline: OpenRouter (or any OpenAI-style server).
     # Only used when FALLBACK_LLM_API_KEY is set. The first model is tried first; the rest are backups.
     fallback_llm_url: str = "https://openrouter.ai/api"

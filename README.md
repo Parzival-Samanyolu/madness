@@ -2,7 +2,7 @@
 
 Users see **Synapse** and the model **synapse-2**. `madness` is only the internal name (CLI, folders, services).
 
-Your own AI service: a ChatGPT-style website plus an OpenAI-compatible API, running **Qwen3.6-35B-A3B** on your own RTX 5060 Ti.
+Your own AI service: a ChatGPT-style website plus an OpenAI-compatible API, running **Inkling 2 Mini** (Thinking Machines, Apache 2.0) on your own RTX 5060 Ti.
 
 ```
  Internet ──HTTPS──► VPS (website, API, accounts, database)
@@ -67,12 +67,15 @@ To change a user's plan, use the Admin page. Stripe billing has a stub ready in 
 
 ## GPU capacity (RTX 5060 Ti, 16 GB)
 
-- The model file is about 22 GB, more than the card's 16 GB, so the experts of most layers live in system RAM (32 GB) and the rest stays on the GPU. Only ~3B parameters work per token, so it stays usable (expect roughly 25-35 tok/s per chat).
-- The rest of the GPU holds a **shared context pool** (8-bit KV cache, about 2.5 GB for 256k tokens), so 4 chats can each reach the plans' 64k.
+- The model file is about 17.6 GB (4-bit), a bit more than the card's 16 GB, so the experts of some of its 24 layers live in system RAM (32 GB) and the rest stays on the GPU. Its image encoder is never loaded (`--no-mmproj`), so that memory goes to chats too.
+- The rest of the GPU holds a **shared context pool** (8-bit KV cache, about 9 GB for 512k tokens, ~17 KB per token), so 4 chats can each reach the plans' **128k**. Its middle layers run three times per token, so expect it a little slower per token than its 3.4B active parameters suggest; `madness bench` shows the real numbers.
+- The model itself handles up to 1M tokens; the 16 GB card is what limits the pool. For fewer, longer chats: `sudo madness set LLM_PARALLEL 2` keeps the pool and gives each chat 256k (raise the plans' `max_context_tokens` to match).
 - **4 chats generate at the same time** by default; more requests queue for a few seconds.
 - Modes: `low` answers without thinking, `medium` thinks up to 4096 tokens, `high` thinks without a cap.
 - Run `madness bench` to measure, then raise `LLM_PARALLEL` while "tok/s per user" stays above about 15.
 - If the pool doesn't fit, the installer moves more experts to RAM, then tries smaller pools, on its own.
+- **Updating from Qwen3.6:** `sudo madness update` on the GPU box downloads Inkling 2 Mini and fits it again by itself; then `sudo madness update` on the VPS for the 128k plans.
+- **Back to Qwen3.6:** on the GPU box `sudo madness set LLM_MODEL unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M` plus `LLM_CTX 262144`, `LLM_CPU_MOE 28`, `LLM_TEMP 0.6`, `LLM_TOP_P 0.95`, `LLM_TOP_K 20`; on the VPS `sudo madness set MODEL_NAME qwen3.6-35b-a3b` and set the plans back to 64k.
 
 ## Developing on your Mac (optional)
 

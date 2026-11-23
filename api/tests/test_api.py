@@ -93,13 +93,26 @@ def test_prepare_body_clamps_and_reasoning():
     from app.llm import prepare_body
     b = prepare_body({"max_tokens": 10**6, "reasoning_effort": "high", "stream": True, "messages": []}, 4096)
     assert b["max_tokens"] == 4096
-    assert b["chat_template_kwargs"] == {"enable_thinking": True}
+    assert b["chat_template_kwargs"] == {"reasoning_effort": "high"}
     assert "thinking_budget_tokens" not in b and "reasoning_effort" not in b
     assert b["stream_options"] == {"include_usage": True}
 
 
-def test_modes_map_to_thinking():
+def test_modes_map_to_inkling_effort_levels():
     from app.llm import for_fallback, prepare_body
+    for effort in ("low", "medium", "high"):
+        b = prepare_body({"reasoning_effort": effort, "messages": []}, 8192)
+        assert b["chat_template_kwargs"] == {"reasoning_effort": effort} and "thinking_budget_tokens" not in b
+        # the OpenRouter fallback gets the original mode back
+        fb = for_fallback(b)
+        assert fb["reasoning"] == {"effort": effort}
+        assert "chat_template_kwargs" not in fb
+
+
+def test_modes_map_to_qwen_thinking(monkeypatch):
+    from app.config import get_settings
+    from app.llm import for_fallback, prepare_body
+    monkeypatch.setattr(get_settings(), "model_name", "qwen3.6-35b-a3b")
     low = prepare_body({"reasoning_effort": "low", "messages": []}, 8192)
     assert low["chat_template_kwargs"] == {"enable_thinking": False} and "thinking_budget_tokens" not in low
     med = prepare_body({"reasoning_effort": "medium", "messages": []}, 8192)
@@ -112,11 +125,10 @@ def test_modes_map_to_thinking():
         assert fb["reasoning"] == {"effort": effort}
         assert "chat_template_kwargs" not in fb and "thinking_budget_tokens" not in fb
 
-
 def test_prompt_too_long(client):
     signup(client)
     h = {"Authorization": f"Bearer {make_key(client)}"}
-    big = "word " * 110_000  # ~137k tokens > the plans' 64k
+    big = "word " * 140_000  # ~175k tokens > the plans' 128k
     r = client.post("/v1/chat/completions", headers=h, json={"messages": [{"role": "user", "content": big}]})
     assert r.status_code == 400 and "too long" in r.json()["error"]["message"]
     # slot was released, normal request still works
@@ -139,7 +151,7 @@ def test_models_show_plan_limits(client):
     signup(client)
     h = {"Authorization": f"Bearer {make_key(client)}"}
     m = client.get("/v1/models", headers=h).json()["data"][0]
-    assert m["context_length"] == 64_000 and m["max_output_tokens"] == 8192 and m["max_concurrent"] == 1
+    assert m["context_length"] == 128_000 and m["max_output_tokens"] == 8192 and m["max_concurrent"] == 1
     assert m["pricing"] == {"prompt": "0.000001", "completion": "0.000001", "input_cache_read": "0.0000001"}
     assert "tools" in m["supported_parameters"]
 

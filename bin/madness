@@ -34,7 +34,12 @@ case "${1:-help}" in
   update)
     root "$@"
     git -C "$DIR" pull --ff-only
-    if [[ $ROLE == vps ]]; then compose up -d --build --remove-orphans; else compose pull && compose up -d; fi
+    if [[ $ROLE == vps ]]; then compose up -d --build --remove-orphans
+    elif [[ $(env_get MODEL_SETUP) != $(grep -oP '^MODEL_SETUP=\K\S+' "$DIR/install.sh") ]]; then
+      # A new model: download it and find the largest context pool that fits (can take a while).
+      echo "The model changed. Downloading it and fitting it to the GPU..."
+      "$DIR/install.sh" tune
+    else compose pull && compose up -d; fi
     docker image prune -f >/dev/null
     echo "Updated." ;;
   backup)

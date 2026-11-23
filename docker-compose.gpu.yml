@@ -16,7 +16,9 @@ services:
           devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
     command:
       - -hf
-      - ${LLM_MODEL:-unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M}
+      # Inkling 2 Mini, 4-bit (17.6 GB). ggml-org's files are in mainline llama.cpp's layout; Unsloth's root
+      # files are not. Needs llama.cpp b12611 or newer (older builds load it but answer garbage).
+      - ${LLM_MODEL:-ggml-org/Inkling-2-Mini-GGUF:IQ4_NL}
       - --host
       - 127.0.0.1
       - --port
@@ -26,11 +28,11 @@ services:
       - --flash-attn
       - "on"
       - --ctx-size
-      - ${LLM_CTX:-262144}      # one pool shared by all chats (--kv-unified); each chat can use up to 65536 (Qwen3.6 needs ~10 KB per token)
+      - ${LLM_CTX:-524288}      # one pool shared by all chats (--kv-unified); each chat can use up to 131072 (Inkling 2 Mini needs ~17 KB per token)
       - --parallel
-      - ${LLM_PARALLEL:-4}      # chats generating at the same time; 4 x 65536 = 262144 so each can reach the plans' 64k
+      - ${LLM_PARALLEL:-4}      # chats generating at the same time; 4 x 131072 = 524288 so each can reach the plans' 128k
       - --n-cpu-moe
-      - ${LLM_CPU_MOE:-28}      # layers (of 40) whose experts stay in system RAM: the 22 GB model doesn't fit in 16 GB
+      - ${LLM_CPU_MOE:-17}      # layers (of 24) whose experts stay in system RAM: the 17.6 GB model doesn't fit in 16 GB
       - --kv-unified
       - --cache-type-k
       - q8_0
@@ -39,13 +41,13 @@ services:
       - --jinja
       - --reasoning-format
       - deepseek
-      - --no-mmproj               # text only: skip the vision projector, keep its GPU memory for chats
+      - --no-mmproj               # text only: skip the vision tower, keep its GPU memory for chats
       - --temp
-      - "0.6"                     # Qwen3.6's recommended sampling for thinking + coding; requests can override
+      - ${LLM_TEMP:-1.0}          # Inkling 2's recommended sampling: temperature 1, no truncation; requests can override
       - --top-p
-      - "0.95"
+      - ${LLM_TOP_P:-1.0}
       - --top-k
-      - "20"
+      - ${LLM_TOP_K:-0}
       - --min-p
-      - "0"
+      - ${LLM_MIN_P:-0}
       - --no-webui

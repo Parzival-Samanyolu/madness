@@ -57,7 +57,9 @@ def for_fallback(body: dict) -> dict:
     kw = out.pop("chat_template_kwargs", None) or {}
     budget = out.pop("thinking_budget_tokens", None)
     effort = out.pop("reasoning_effort", None)
-    if effort is None and "enable_thinking" in kw:  # undo prepare_body's mode mapping
+    if effort is None and kw.get("reasoning_effort") in ("low", "medium", "high"):  # undo prepare_body (Inkling)
+        effort = kw["reasoning_effort"]
+    if effort is None and "enable_thinking" in kw:  # undo prepare_body's mode mapping (Qwen)
         effort = "low" if not kw["enable_thinking"] else "medium" if budget else "high"
     if effort in ("low", "medium", "high"):
         out["reasoning"] = {"effort": effort}
@@ -68,8 +70,13 @@ def estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-# Thinking tokens allowed per mode (llama.cpp `thinking_budget_tokens`); missing = unlimited.
+# Thinking tokens allowed per mode (llama.cpp `thinking_budget_tokens`); missing = unlimited. Qwen only.
 THINKING_BUDGET = {"medium": 4096}
+
+
+def qwen_model() -> bool:
+    """Qwen3.x switches thinking on or off; Inkling 2 takes an effort level in its chat template."""
+    return "qwen" in get_settings().model_name.lower()
 
 
 def prepare_body(body: dict, max_output_tokens: int) -> dict:
@@ -80,7 +87,12 @@ def prepare_body(body: dict, max_output_tokens: int) -> dict:
     out["max_tokens"] = min(int(requested), max_output_tokens)
     out.pop("max_completion_tokens", None)
     effort = out.pop("reasoning_effort", None)
-    if effort in ("low", "medium", "high"):
+    if effort in ("low", "medium", "high") and not qwen_model():
+        # Inkling 2's chat template has effort levels of its own (its "Thinking effort level" line).
+        kw = dict(out.get("chat_template_kwargs") or {})
+        kw["reasoning_effort"] = effort
+        out["chat_template_kwargs"] = kw
+    elif effort in ("low", "medium", "high"):
         # Qwen3.6 has no effort levels, only thinking on/off, so the modes become:
         # low = no thinking, medium = thinking capped at THINKING_BUDGET[medium] tokens, high = no cap.
         kw = dict(out.get("chat_template_kwargs") or {})
