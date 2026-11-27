@@ -64,7 +64,8 @@ case "${1:-help}" in
     repo=$(git -C "$DIR" remote get-url origin); branch=$(git -C "$DIR" rev-parse --abbrev-ref HEAD)
     args=("$DIR/scripts/pair_server.py" "$(env_get DOMAIN)" "$(env_get PUBLIC_IP)" "$(env_get LLM_API_KEY)" "$repo" "$branch")
     if [[ -n ${2:-} ]]; then
-      systemctl stop madness-pair 2>/dev/null || true; rm -f /run/madness-pair.txt
+      # A finished or failed earlier run leaves the unit behind; clear it so the name is free.
+      systemctl stop madness-pair 2>/dev/null || true; systemctl reset-failed madness-pair 2>/dev/null || true; rm -f /run/madness-pair.txt
       systemd-run --quiet --unit madness-pair --setenv=MADNESS_PAIR_HOURS="$2" /usr/bin/python3 "${args[@]}"
       for _ in $(seq 1 20); do [[ -s /run/madness-pair.txt ]] && break; sleep 0.5; done
       echo "Pairing is open in the background. On the GPU box type:"; echo
