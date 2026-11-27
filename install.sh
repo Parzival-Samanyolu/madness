@@ -360,14 +360,14 @@ gpu_container_runtime() {
 }
 
 gpu_start_model() {
-  step "Starting the model (first start downloads ~22 GB of Qwen3.6-35B-A3B)"
+  step "Starting the model (first start downloads ~18 GB of Inkling 2 Mini)"
   mkdir -p "$DIR/models"
   [[ -n $(env_get LLM_CTX) ]] || env_set LLM_CTX 262144
-  [[ -n $(env_get LLM_PARALLEL) ]] || env_set LLM_PARALLEL 4
-  # Goal: 4 chats that can each reach 65536 tokens (pool 262144, ~2.5 GB; plans allow 64k). The model (22 GB) is bigger
-  # than the 16 GB card, so the experts of most of its 40 layers live in system RAM (--n-cpu-moe).
-  # Fewer layers in RAM is faster, so try those first; only then fall back to smaller pools.
-  local tries=("262144 20" "262144 24" "262144 28" "262144 32" "262144 36" "262144 40" "131072 32" "131072 40" "65536 40")
+  [[ -n $(env_get LLM_PARALLEL) ]] || env_set LLM_PARALLEL 2
+  # Goal: 2 chats that can each reach 131072 tokens (pool 262144, ~4.5 GB at 8-bit; plans allow 128k). The model
+  # (17.6 GB) is bigger than the 16 GB card, so the experts of some of its 24 layers live in system RAM (--n-cpu-moe).
+  # Fewer layers in RAM is faster, so try those first; only then fall back to a smaller pool (64k per chat).
+  local tries=("262144 8" "262144 10" "262144 12" "262144 14" "262144 16" "262144 18" "262144 20" "262144 24" "131072 24")
   for t in "${tries[@]}"; do
     local ctx=${t% *} moe=${t#* }
     (( ctx > $(env_get LLM_CTX) )) && continue
@@ -375,7 +375,7 @@ gpu_start_model() {
     env_set LLM_CPU_MOE "$moe"
     compose up -d --force-recreate
     echo "  Trying a context pool of $ctx tokens for $(env_get LLM_PARALLEL) chats, $moe layers' experts in RAM..."
-    local started=0 deadline=$(( $(date +%s) + 6 * 3600 ))  # slow internet: 22 GB can take a while
+    local started=0 deadline=$(( $(date +%s) + 6 * 3600 ))  # slow internet: 18 GB can take a while
     while (( $(date +%s) < deadline )); do
       local restarts; restarts=$(docker inspect -f '{{.RestartCount}}' "$(compose ps -q llm)" 2>/dev/null || echo 0)
       if (( restarts >= 3 )) && ! compose logs --tail 80 llm 2>&1 | grep -qiE "out of memory|failed to allocate|cudaMalloc failed|failed to create context"; then
@@ -395,6 +395,25 @@ gpu_start_model() {
   die "Model did not start. Run 'madness logs' to see why."
 }
 
+# The model setup this version of Madness expects. `madness update` re-fits the model when it changes.
+MODEL_SETUP=inkling2-mini-2x128k
+
+# Re-fits the context pool and RAM split for the current model (after an update changed it).
+tune_gpu() {
+  [[ $(env_get ROLE) == gpu ]] || die "Run this on the GPU box."
+  local model; model=$(env_get LLM_MODEL)
+  if [[ -n $model && $model != *Inkling* ]]; then
+    ok "LLM_MODEL is set to $model; leaving its settings alone"; env_set MODEL_SETUP "$MODEL_SETUP"; return 0
+  fi
+  # Start from the new goal; Qwen's sampling and 40-layer split no longer apply.
+  env_set LLM_CTX 262144
+  env_set LLM_PARALLEL 2
+  for k in LLM_TEMP LLM_TOP_P LLM_TOP_K LLM_MIN_P; do sed -i "/^$k=/d" "$DIR/.env"; done
+  compose pull -q llm
+  gpu_start_model
+  env_set MODEL_SETUP "$MODEL_SETUP"
+}
+
 install_gpu() {
   load_os
   [[ $OS_ID == fedora ]] || die "The GPU box must run Fedora (any edition, e.g. KDE or Server; found: $PRETTY_NAME)."
@@ -408,6 +427,7 @@ install_gpu() {
   gpu_nvidia
   gpu_container_runtime
   gpu_start_model
+  env_set MODEL_SETUP "$MODEL_SETUP"
   echo
   echo "${c_green}All done! Your GPU box is serving the model to the VPS.${c_off}"
   echo "  Check it any time:    madness status"
@@ -428,7 +448,8 @@ main() {
   case "$role" in
     vps) install_vps ;;
     gpu) install_gpu ;;
-    *) echo "Usage: install.sh vps | gpu [--pair URL]"; exit 1 ;;
+    tune) tune_gpu ;;
+    *) echo "Usage: install.sh vps | gpu [--pair URL] | tune"; exit 1 ;;
   esac
 }
 

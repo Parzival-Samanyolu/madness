@@ -72,7 +72,7 @@ Type that **exact line** in Konsole on the GPU box and press Enter. It will:
 2. Turn off sleep and suspend, so the AI stays online. KDE's "Sleep" button stops working on this PC; shutting down and restarting still work.
 3. Ask whether you want **Cockpit**, a web dashboard for this box that you can open from your Mac on the home Wi-Fi. Your choice.
 4. Install the NVIDIA driver, then ask to **reboot**. Say yes.
-5. **After the reboot it continues by itself.** It installs Docker and downloads the AI model (about 22 GB), then starts it.
+5. **After the reboot it continues by itself.** It installs Docker and downloads the AI model (about 18 GB), then starts it.
 
 To watch progress after the reboot, log in, open Konsole and run:
 ```bash
@@ -111,7 +111,7 @@ The box restarts everything on its own after a reboot or a power cut.
 ## Troubleshooting
 
 - **`nvidia-smi` says "No devices were found"**: Secure Boot is probably still on (see below), or the driver build didn't finish. Run `sudo akmods --force && sudo reboot`.
-- **Model never comes online**: run `madness logs`. If you see "out of memory", the installer already retries with a smaller context. You can also run `sudo madness set LLM_CTX 65536` yourself.
+- **Model never comes online**: run `madness logs`. If you see "out of memory", the installer already retries with a smaller context. You can also run `sudo madness set LLM_CTX 131072` (64k per chat) yourself.
 - **The website says "AI server is offline"**: run `madness status` on both machines. If *Private link* says "not connected", run `journalctl -u madness-tunnel -n 20` on the GPU box to see why.
 
 ## Keeping Secure Boot on (optional, advanced)
