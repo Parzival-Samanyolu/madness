@@ -362,12 +362,12 @@ gpu_container_runtime() {
 gpu_start_model() {
   step "Starting the model (first start downloads ~18 GB of Inkling 2 Mini)"
   mkdir -p "$DIR/models"
-  [[ -n $(env_get LLM_CTX) ]] || env_set LLM_CTX 524288
-  [[ -n $(env_get LLM_PARALLEL) ]] || env_set LLM_PARALLEL 4
-  # Goal: 4 chats that can each reach 131072 tokens (pool 524288, ~9 GB at 8-bit; plans allow 128k). The model
+  [[ -n $(env_get LLM_CTX) ]] || env_set LLM_CTX 262144
+  [[ -n $(env_get LLM_PARALLEL) ]] || env_set LLM_PARALLEL 2
+  # Goal: 2 chats that can each reach 131072 tokens (pool 262144, ~4.5 GB at 8-bit; plans allow 128k). The model
   # (17.6 GB) is bigger than the 16 GB card, so the experts of some of its 24 layers live in system RAM (--n-cpu-moe).
-  # Fewer layers in RAM is faster, so try those first; only then fall back to smaller pools (64k, then 32k per chat).
-  local tries=("524288 14" "524288 16" "524288 18" "524288 20" "524288 22" "524288 24" "262144 16" "262144 24" "131072 24")
+  # Fewer layers in RAM is faster, so try those first; only then fall back to a smaller pool (64k per chat).
+  local tries=("262144 8" "262144 10" "262144 12" "262144 14" "262144 16" "262144 18" "262144 20" "262144 24" "131072 24")
   for t in "${tries[@]}"; do
     local ctx=${t% *} moe=${t#* }
     (( ctx > $(env_get LLM_CTX) )) && continue
@@ -396,7 +396,7 @@ gpu_start_model() {
 }
 
 # The model setup this version of Madness expects. `madness update` re-fits the model when it changes.
-MODEL_SETUP=inkling2-mini-128k
+MODEL_SETUP=inkling2-mini-2x128k
 
 # Re-fits the context pool and RAM split for the current model (after an update changed it).
 tune_gpu() {
@@ -406,7 +406,8 @@ tune_gpu() {
     ok "LLM_MODEL is set to $model; leaving its settings alone"; env_set MODEL_SETUP "$MODEL_SETUP"; return 0
   fi
   # Start from the new goal; Qwen's sampling and 40-layer split no longer apply.
-  env_set LLM_CTX 524288
+  env_set LLM_CTX 262144
+  env_set LLM_PARALLEL 2
   for k in LLM_TEMP LLM_TOP_P LLM_TOP_K LLM_MIN_P; do sed -i "/^$k=/d" "$DIR/.env"; done
   compose pull -q llm
   gpu_start_model

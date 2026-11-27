@@ -28,11 +28,11 @@ services:
       - --flash-attn
       - "on"
       - --ctx-size
-      - ${LLM_CTX:-524288}      # one pool shared by all chats (--kv-unified); each chat can use up to 131072 (Inkling 2 Mini needs ~17 KB per token)
+      - ${LLM_CTX:-262144}      # one pool shared by all chats (--kv-unified); each chat can use up to 131072 (Inkling 2 Mini needs ~17 KB per token)
       - --parallel
-      - ${LLM_PARALLEL:-4}      # chats generating at the same time; 4 x 131072 = 524288 so each can reach the plans' 128k
+      - ${LLM_PARALLEL:-2}      # chats generating at the same time; 2 x 131072 = 262144 so each can reach the plans' 128k
       - --n-cpu-moe
-      - ${LLM_CPU_MOE:-17}      # layers (of 24) whose experts stay in system RAM: the 17.6 GB model doesn't fit in 16 GB
+      - ${LLM_CPU_MOE:-12}      # layers (of 24) whose experts stay in system RAM: the 17.6 GB model doesn't fit in 16 GB
       - --kv-unified
       - --cache-type-k
       - q8_0

@@ -111,7 +111,7 @@ The box restarts everything on its own after a reboot or a power cut.
 ## Troubleshooting
 
 - **`nvidia-smi` says "No devices were found"**: Secure Boot is probably still on (see below), or the driver build didn't finish. Run `sudo akmods --force && sudo reboot`.
-- **Model never comes online**: run `madness logs`. If you see "out of memory", the installer already retries with a smaller context. You can also run `sudo madness set LLM_CTX 262144` (64k per chat) yourself.
+- **Model never comes online**: run `madness logs`. If you see "out of memory", the installer already retries with a smaller context. You can also run `sudo madness set LLM_CTX 131072` (64k per chat) yourself.
 - **The website says "AI server is offline"**: run `madness status` on both machines. If *Private link* says "not connected", run `journalctl -u madness-tunnel -n 20` on the GPU box to see why.
 
 ## Keeping Secure Boot on (optional, advanced)
