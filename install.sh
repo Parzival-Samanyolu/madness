@@ -260,7 +260,9 @@ EOF
 
 gpu_system_setup() {
   step "System settings for an always-on server"
-  hostnamectl set-hostname madness-gpu
+  # Renaming the box under a running KDE/GNOME session can break the desktop (X11 logins are tied to the name),
+  # so only rename once; the new name settles fully at the next reboot.
+  [[ $(hostnamectl --static 2>/dev/null) == madness-gpu ]] || hostnamectl set-hostname madness-gpu
   systemctl mask -q sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
   ok "Sleep disabled (the AI stays online), hostname set"
   if systemctl is-enabled -q sddm 2>/dev/null || systemctl is-enabled -q gdm 2>/dev/null; then
