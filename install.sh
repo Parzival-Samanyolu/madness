@@ -366,6 +366,13 @@ gpu_start_model() {
   mkdir -p "$DIR/models"
   # Slow or flaky networks: keep retrying the image download instead of giving up on the first timeout.
   until compose pull -q llm; do warn "Download interrupted (network?), retrying in 30 s"; sleep 30; done
+  # Another model server already on port 8080 would answer the health check instead of ours (and without the GPU).
+  compose stop llm >/dev/null 2>&1 || true
+  if ss -ltnp 'sport = :8080' 2>/dev/null | grep -q LISTEN; then
+    local who; who=$(ss -ltnp 'sport = :8080' | grep -o 'users:.*' | head -1)
+    local unit; unit=$(ss -ltnp 'sport = :8080' | grep -oP 'pid=\K[0-9]+' | head -1 | xargs -r ps -o unit= -p 2>/dev/null | head -1)
+    die "Port 8080 is already used by another program ($who${unit:+, service $unit}). Stop it${unit:+ with: sudo systemctl disable --now $unit}, then run this again."
+  fi
   [[ -n $(env_get LLM_CTX) ]] || env_set LLM_CTX 262144
   [[ -n $(env_get LLM_PARALLEL) ]] || env_set LLM_PARALLEL 2
   # Goal: 2 chats that can each reach 131072 tokens (pool 262144, ~4.5 GB at 8-bit; plans allow 128k). The model
