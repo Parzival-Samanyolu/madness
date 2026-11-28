@@ -10,6 +10,9 @@ services:
       LLAMA_CACHE: /models
       LLAMA_API_KEY: ${LLM_API_KEY}
     volumes: ["./models:/models:Z"]
+    # Fedora's SELinux stops the container from running llama.cpp's binary next to the GPU libraries
+    # (an AVC "execute" denial on llama-server.bin); NVIDIA's guidance for GPU containers is label=disable.
+    security_opt: ["label=disable"]
     deploy:
       resources:
         reservations:
