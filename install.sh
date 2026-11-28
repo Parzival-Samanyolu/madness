@@ -362,6 +362,8 @@ gpu_container_runtime() {
 gpu_start_model() {
   step "Starting the model (first start downloads ~18 GB of Inkling 2 Mini)"
   mkdir -p "$DIR/models"
+  # Slow or flaky networks: keep retrying the image download instead of giving up on the first timeout.
+  until compose pull -q llm; do warn "Download interrupted (network?), retrying in 30 s"; sleep 30; done
   [[ -n $(env_get LLM_CTX) ]] || env_set LLM_CTX 262144
   [[ -n $(env_get LLM_PARALLEL) ]] || env_set LLM_PARALLEL 2
   # Goal: 2 chats that can each reach 131072 tokens (pool 262144, ~4.5 GB at 8-bit; plans allow 128k). The model
@@ -378,7 +380,8 @@ gpu_start_model() {
     local started=0 deadline=$(( $(date +%s) + 6 * 3600 ))  # slow internet: 18 GB can take a while
     while (( $(date +%s) < deadline )); do
       local restarts; restarts=$(docker inspect -f '{{.RestartCount}}' "$(compose ps -q llm)" 2>/dev/null || echo 0)
-      if (( restarts >= 3 )) && ! compose logs --tail 80 llm 2>&1 | grep -qiE "out of memory|failed to allocate|cudaMalloc failed|failed to create context"; then
+      # A model download cut off by the network also restarts the container; it resumes, so that isn't a crash.
+      if (( restarts >= 3 )) && ! compose logs --tail 80 llm 2>&1 | grep -qiE "out of memory|failed to allocate|cudaMalloc failed|failed to create context|download|curl|timed out|resolve|connection"; then
         compose logs --tail 30 llm; die "The model keeps crashing (see the log above). Send this output for help."
       fi
       if curl -fsS --max-time 3 "http://127.0.0.1:8080/health" 2>/dev/null | grep -q ok; then started=1; break; fi
