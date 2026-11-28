@@ -3,6 +3,8 @@
 set -euo pipefail
 DIR=/opt/madness
 [[ -f $DIR/.env ]] || { echo "Madness is not installed here ($DIR/.env missing)."; exit 1; }
+# .env holds secrets and is readable by root only; re-run with sudo instead of silently reading nothing.
+[[ -r $DIR/.env ]] || exec sudo "$0" "$@"
 env_get() { grep -E "^$1=" "$DIR/.env" | tail -1 | cut -d= -f2- | sed 's/\$\$/$/g' || true; }
 ROLE=$(env_get ROLE)
 compose() { (cd "$DIR" && docker compose -f "docker-compose.$ROLE.yml" "$@"); }
